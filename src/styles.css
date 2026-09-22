@@ -494,6 +494,31 @@ img {
   gap: 4px;
 }
 
+.verse {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 36ch;
+  margin-top: 4px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.verse p {
+  margin: 0;
+}
+
+.verse em {
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--accent-text);
+  text-shadow: 0 0 14px var(--glow);
+}
+
 .gate-tag {
   font-size: 13px;
   letter-spacing: 0.08em;

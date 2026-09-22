@@ -6,6 +6,7 @@ import type { GoogleLink, Profile } from '../lib/types';
 import { Avatar } from './Avatar';
 import { GoogleIcon, LockIcon, PlusIcon } from './Icons';
 import { Logo } from './Logo';
+import { Verse } from './Verse';
 import { PinPad } from './PinPad';
 
 const SESSION_KEY = 'shruti.session';
@@ -139,7 +140,6 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
     <div className="gate">
       <div className="gate-brand">
         <Logo size={232} className="gate-logo" />
-        <span className="gate-tag">গল্প শুনুন, অন্ধকারে · Shruti</span>
       </div>
 
       {view.kind === 'pick' && (
@@ -220,6 +220,8 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
           onGoogle={cloud && !view.google ? googleSignIn : undefined}
         />
       )}
+
+      <Verse />
     </div>
   );
 }
