@@ -2,7 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { CloseIcon, SearchIcon, SortIcon } from '../components/Icons';
 import { Sheet } from '../components/Sheet';
+import { genreStyle, GenreIcon } from '../components/GenreMark';
 import { TrackRow } from '../components/TrackRow';
+import { GENRES } from '../lib/genres';
 import { formatBytes } from '../lib/format';
 import { trackStatus, type Filter, type SortKey } from '../lib/types';
 import { useShell } from '../shellContext';
@@ -24,7 +26,7 @@ export const SORTS: { value: SortKey; label: string }[] = [
 ];
 
 export function LibraryView() {
-  const { lib, settings, updateSettings, visible, query, setQuery, queue, currentId, playing, play, openMenu } = useShell();
+  const { lib, settings, updateSettings, visible, query, setQuery, queue, currentId, playing, play, openMenu, libraryGenre, setLibraryGenre } = useShell();
   const { tracks, coverUrls } = lib;
   const [sortOpen, setSortOpen] = useState(false);
 
@@ -67,6 +69,24 @@ export function LibraryView() {
         <button type="button" className="icon-btn boxed" onClick={() => setSortOpen(true)} aria-label="Sort">
           <SortIcon />
         </button>
+      </div>
+      <div className="chips genre-chips" role="radiogroup" aria-label="Genre">
+        <button type="button" role="radio" aria-checked={!libraryGenre} className={`chip${!libraryGenre ? ' on' : ''}`} onClick={() => setLibraryGenre(null)}>
+          সব ধরন
+        </button>
+        {GENRES.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            role="radio"
+            aria-checked={libraryGenre === g.id}
+            className={`chip genre-chip${libraryGenre === g.id ? ' on' : ''}`}
+            style={genreStyle(g.id)}
+            onClick={() => setLibraryGenre(libraryGenre === g.id ? null : g.id)}
+          >
+            <GenreIcon id={g.id} /> {g.name}
+          </button>
+        ))}
       </div>
       <div className="chips" role="radiogroup" aria-label="Filter">
         {FILTERS.map((f) => (

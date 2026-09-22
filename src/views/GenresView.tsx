@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { genreStyle, GenreIcon } from '../components/GenreMark';
 import { ChevronLeftIcon, ChevronRightIcon, MasksIcon } from '../components/Icons';
 import { TrackRow } from '../components/TrackRow';
 import { GENRE_BY_ID, GENRE_TERMS, GENRES, hasTag, mainOf, type GenreId } from '../lib/genres';
-import { lsGet, lsSet } from '../lib/settings';
 import type { Track } from '../lib/types';
 import { useShell } from '../shellContext';
 
@@ -13,23 +12,22 @@ const UNTAGGED = 'untagged';
 
 const inSelection = (t: Track, sel: string) => (sel === UNTAGGED ? !t.genres?.length : hasTag(t.genres ?? [], sel));
 
-export function GenresView() {
-  const { sorted } = useShell();
-  const [selection, setSelection] = useState<Selection>(() => lsGet<Selection>('shruti.genre', null));
-  useEffect(() => lsSet('shruti.genre', selection ?? undefined), [selection]);
+export function genreCounts(tracks: Track[]): Map<string, number> {
+  const c = new Map<string, number>();
+  const bump = (k: string) => c.set(k, (c.get(k) ?? 0) + 1);
+  for (const t of tracks) {
+    const tags = t.genres ?? [];
+    if (!tags.length) bump(UNTAGGED);
+    for (const main of new Set(tags.map(mainOf))) bump(main);
+    for (const tag of tags) if (tag.includes('.')) bump(tag);
+  }
+  return c;
+}
 
-  // Counts for every main genre and sub-genre in one pass.
-  const counts = useMemo(() => {
-    const c = new Map<string, number>();
-    const bump = (k: string) => c.set(k, (c.get(k) ?? 0) + 1);
-    for (const t of sorted) {
-      const tags = t.genres ?? [];
-      if (!tags.length) bump(UNTAGGED);
-      for (const main of new Set(tags.map(mainOf))) bump(main);
-      for (const tag of tags) if (tag.includes('.')) bump(tag);
-    }
-    return c;
-  }, [sorted]);
+export function GenresView() {
+  const { sorted, genreSelection: selection, setGenreSelection: setSelection } = useShell();
+
+  const counts = useMemo(() => genreCounts(sorted), [sorted]);
 
   if (selection) return <GenreDetail selection={selection} counts={counts} onSelect={setSelection} />;
 

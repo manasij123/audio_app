@@ -255,7 +255,7 @@ img {
   padding: 8px 4px 9px;
   border: 0;
   background: none;
-  color: var(--faint);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -958,6 +958,7 @@ img {
   padding-bottom: 6px;
   margin: 0 -16px;
   padding-inline: 16px;
+  scroll-padding-inline: 16px;
   scrollbar-width: none;
 }
 

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Cover } from '../components/Cover';
 import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { PlayIcon } from '../components/Icons';
+import { GenreShelf } from '../components/GenreShelf';
 import { Logo } from '../components/Logo';
 import { StatusLabel } from '../components/TrackRow';
 import { dayKey } from '../hooks/useLibrary';
@@ -84,6 +85,7 @@ export function HomeView() {
           <ImportProgressBar />
           <p className="hint">ফোন যদি ফোল্ডার বাছতে না দেয়, “ফাইল যোগ” চেপে ফোল্ডারের সব ফাইল একসাথে সিলেক্ট করুন।</p>
         </section>
+        <GenreShelf />
       </div>
     );
   }
@@ -140,6 +142,8 @@ export function HomeView() {
           </button>
         </section>
       )}
+
+      <GenreShelf />
 
       <section className="section">
         <h2 className="section-title">শোনার হিসাব · Listening</h2>

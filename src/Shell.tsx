@@ -14,6 +14,7 @@ import { useLibrary, type ImportResult } from './hooks/useLibrary';
 import type { LibraryStore } from './lib/db';
 import { getEngine, useEngine } from './lib/engine';
 import { formatTime } from './lib/format';
+import { hasTag } from './lib/genres';
 import { loadSettings, lsGet, lsSet, saveSettings, type Settings } from './lib/settings';
 import { trackStatus, type Profile, type Track } from './lib/types';
 import { ShellContext, type ShellValue } from './shellContext';
@@ -96,6 +97,9 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     [queueKey],
   );
   const [pendingImport, setPendingImport] = useState<File[] | null>(null);
+  const [genreSelection, setGenreSelection] = useState<string | null>(() => lsGet<string | null>('shruti.genre', null));
+  useEffect(() => lsSet('shruti.genre', genreSelection ?? undefined), [genreSelection]);
+  const [libraryGenre, setLibraryGenre] = useState<string | null>(null);
   const [playContext, setPlayContext] = useState<string[] | null>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
@@ -133,11 +137,12 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     const q = query.trim().toLocaleLowerCase();
     const f = settings.filter;
     return sorted.filter((t) => {
+      if (libraryGenre && !hasTag(t.genres ?? [], libraryGenre)) return false;
       if (f === 'favorites' && !t.favorite) return false;
       if (f !== 'all' && f !== 'favorites' && trackStatus(t) !== f) return false;
       return !q || t.title.toLocaleLowerCase().includes(q) || (t.album ?? '').toLocaleLowerCase().includes(q);
     });
-  }, [sorted, settings.filter, query]);
+  }, [sorted, settings.filter, query, libraryGenre]);
   const trackMap = useMemo(() => new Map(lib.tracks.map((t) => [t.id, t])), [lib.tracks]);
   const currentTrack = currentId ? trackMap.get(currentId) ?? null : null;
 
@@ -306,6 +311,15 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     pickFolder: () => folderInput.current?.click(),
     pickFiles: () => filesInput.current?.click(),
     toast: showToast,
+    genreSelection,
+    setGenreSelection,
+    openGenre: (sel) => {
+      setGenreSelection(sel);
+      setTab('genres');
+      window.scrollTo({ top: 0 });
+    },
+    libraryGenre,
+    setLibraryGenre,
   };
 
   const storageWarning =

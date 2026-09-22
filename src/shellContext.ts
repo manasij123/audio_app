@@ -28,6 +28,14 @@ export interface ShellValue {
   pickFolder(): void;
   pickFiles(): void;
   toast(message: string): void;
+  /** Genre screen selection: "horror", "horror.tantrik", "untagged" or null for the overview. */
+  genreSelection: string | null;
+  setGenreSelection(sel: string | null): void;
+  /** Open the ধরন tab at a genre / sub-genre. */
+  openGenre(sel: string | null): void;
+  /** Library's genre filter (main genre id) or null for all. */
+  libraryGenre: string | null;
+  setLibraryGenre(g: string | null): void;
 }
 
 export const ShellContext = createContext<ShellValue | null>(null);
