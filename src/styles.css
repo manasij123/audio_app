@@ -23,7 +23,7 @@
   --shadow-lg: 0 18px 50px rgb(60 10 15 / 0.2);
   --shadow-dock: 0 -8px 30px rgb(60 10 15 / 0.1);
   --radius: 16px;
-  --wm-opacity: 0.07;
+  --wm-opacity: 0.05;
   --font: 'Anek Bangla Variable', 'Noto Sans Bengali', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --display: 'Galada', 'Anek Bangla Variable', 'Noto Serif Bengali', serif;
   color-scheme: light;
@@ -49,7 +49,7 @@
     --on-danger: #1e0800;
     --star: #ffc53d;
     --glow: rgb(227 35 45 / 0.32);
-    --wm-opacity: 0.1;
+    --wm-opacity: 0.06;
     --scrim: rgb(0 0 0 / 0.65);
     --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.6);
     --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.5);
@@ -76,7 +76,7 @@
   --on-danger: #1e0800;
   --star: #ffc53d;
   --glow: rgb(227 35 45 / 0.32);
-  --wm-opacity: 0.1;
+  --wm-opacity: 0.06;
   --scrim: rgb(0 0 0 / 0.65);
   --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.6);
   --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.5);
@@ -141,12 +141,13 @@ img {
   min-height: 100dvh;
 }
 
-/* Logo line-art watermark behind the screens. */
+/* Logo line-art watermark laid over the screen content: barely there, never in the way.
+   Above the content (z 1), below the dock (20), the player (40) and sheets (60). */
 .watermark {
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: 0;
+  z-index: 10;
   width: min(88vw, 560px);
   height: auto;
   transform: translate(-50%, -52%);

@@ -47,7 +47,7 @@ entirely in the browser. Your audio files never leave the device.
 - Lock-screen and notification controls use the Media Session API. On desktop, Space plays or
   pauses and ←/→ skip.
 
-**Branding:** the Shruti logo (`public/logo.webp`) appears on the home screen and is used for the app icons. The login screen shows `public/login-art.webp`: the logo with the five couplets of the Shruti rhyme in illustrated clouds, placed beside the profile card on wide screens. A faint line-art version of the logo (`public/watermark.webp`) sits as a watermark behind every screen. The palette (warm black, blood red, bone white) and the Galada display face follow the logo.
+**Branding:** the Shruti logo (`public/logo.webp`) appears on the home screen and is used for the app icons. The login screen shows `public/login-art.webp`: the logo with the five couplets of the Shruti rhyme in illustrated clouds, placed beside the profile card on wide screens. A faint line-art version of the logo (`public/watermark.webp`) is laid over every screen as a click-through watermark (5% opacity light, 6% dark). The palette (warm black, blood red, bone white) and the Galada display face follow the logo.
 
 **Genres (ধরন tab)**
 - Five main genres with sub-genres: গোয়েন্দা ও রহস্য (6), থ্রিলার (12), ভৌতিক ও হরর (8),
