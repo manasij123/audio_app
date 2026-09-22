@@ -1,46 +1,35 @@
-import type { Track } from './types';
+import { normalizeTrack, type Bookmark, type DayStats, type Profile, type Progress, type Track } from './types';
 
 const DB_NAME = 'shruti';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
-type StoreName = 'tracks' | 'covers' | 'audio';
-interface BlobRecord {
-  id: string;
-  blob: Blob;
-}
+/* ------------------------------------------------------------------ schema */
 
-export interface LibraryStore {
-  /** 'indexeddb' persists across reloads; 'memory' is lost on reload. */
+type StoreName = 'tracks' | 'covers' | 'audio' | 'progress' | 'bookmarks' | 'stats' | 'profiles';
+
+const SCHEMA: Record<StoreName, { keyPath: string | string[]; indexes?: Record<string, string> }> = {
+  tracks: { keyPath: 'id' },
+  covers: { keyPath: 'id' },
+  audio: { keyPath: 'id' },
+  progress: { keyPath: ['profileId', 'trackId'], indexes: { profileId: 'profileId', trackId: 'trackId' } },
+  bookmarks: { keyPath: 'id', indexes: { profileId: 'profileId', trackId: 'trackId' } },
+  stats: { keyPath: ['profileId', 'day'], indexes: { profileId: 'profileId' } },
+  profiles: { keyPath: 'id' },
+};
+
+type Key = IDBValidKey;
+type Op =
+  | { store: StoreName; put: object }
+  | { store: StoreName; del: Key }
+  | { store: StoreName; delWhere: { index: string; value: Key } };
+
+/** The few primitives the library needs; implemented by IndexedDB and by an in-memory fallback. */
+interface Backend {
   readonly mode: 'indexeddb' | 'memory';
-  loadAll(): Promise<{ tracks: Track[]; covers: Map<string, Blob> }>;
-  add(track: Track, audio: Blob, cover: Blob | null): Promise<void>;
-  saveMeta(track: Track): Promise<void>;
-  getAudio(id: string): Promise<Blob | null>;
-  remove(id: string): Promise<void>;
-}
-
-export function isQuotaError(err: unknown): boolean {
-  const name = (err as { name?: string } | null)?.name;
-  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
-}
-
-/** Only the metadata fields — never let stray UI props leak into the DB. */
-function toRecord(t: Track): Track {
-  return {
-    id: t.id,
-    title: t.title,
-    album: t.album,
-    artist: t.artist,
-    trackNo: t.trackNo,
-    sizeBytes: t.sizeBytes,
-    favorite: t.favorite,
-    position: t.position,
-    duration: t.duration,
-    addedAt: t.addedAt,
-    fileName: t.fileName,
-    mimeType: t.mimeType,
-    hasCover: t.hasCover,
-  };
+  get<T>(store: StoreName, key: Key): Promise<T | undefined>;
+  getAll<T>(store: StoreName, where?: { index: string; value: Key }): Promise<T[]>;
+  /** Apply all ops atomically. */
+  write(ops: Op[]): Promise<void>;
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -54,8 +43,12 @@ function openDatabase(): Promise<IDBDatabase> {
     }
     req.onupgradeneeded = () => {
       const db = req.result;
-      for (const name of ['tracks', 'covers', 'audio'] as StoreName[]) {
-        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'id' });
+      const tx = req.transaction!;
+      for (const [name, def] of Object.entries(SCHEMA) as [StoreName, (typeof SCHEMA)[StoreName]][]) {
+        const store = db.objectStoreNames.contains(name) ? tx.objectStore(name) : db.createObjectStore(name, { keyPath: def.keyPath });
+        for (const [index, path] of Object.entries(def.indexes ?? {})) {
+          if (!store.indexNames.contains(index)) store.createIndex(index, path);
+        }
       }
     };
     req.onsuccess = () => {
@@ -64,20 +57,15 @@ function openDatabase(): Promise<IDBDatabase> {
       resolve(db);
     };
     req.onerror = () => reject(req.error);
-    req.onblocked = () => reject(new Error('Database is blocked by another open tab'));
+    req.onblocked = () => reject(new Error('Shruti is open in another tab with an older version. Close that tab and reload.'));
   });
 }
 
-class IdbStore implements LibraryStore {
+class IdbBackend implements Backend {
   readonly mode = 'indexeddb' as const;
   constructor(private db: IDBDatabase) {}
 
-  /** Run `fn` inside a transaction; resolves with whatever `set` received once the tx commits. */
-  private run<T>(
-    stores: StoreName[],
-    mode: IDBTransactionMode,
-    fn: (tx: IDBTransaction, set: (v: T) => void) => void,
-  ): Promise<T> {
+  private tx<T>(stores: StoreName[], mode: IDBTransactionMode, fn: (tx: IDBTransaction, set: (v: T) => void) => void): Promise<T> {
     return new Promise((resolve, reject) => {
       let tx: IDBTransaction;
       try {
@@ -103,89 +91,271 @@ class IdbStore implements LibraryStore {
     });
   }
 
-  loadAll() {
-    return this.run<{ tracks: Track[]; covers: Map<string, Blob> }>(['tracks', 'covers'], 'readonly', (tx, set) => {
-      const result = { tracks: [] as Track[], covers: new Map<string, Blob>() };
-      const tReq = tx.objectStore('tracks').getAll();
-      tReq.onsuccess = () => (result.tracks = tReq.result as Track[]);
-      const cReq = tx.objectStore('covers').getAll();
-      cReq.onsuccess = () => {
-        for (const r of cReq.result as BlobRecord[]) result.covers.set(r.id, r.blob);
-      };
-      set(result);
+  get<T>(store: StoreName, key: Key) {
+    return this.tx<T | undefined>([store], 'readonly', (tx, set) => {
+      const r = tx.objectStore(store).get(key);
+      r.onsuccess = () => set(r.result as T | undefined);
     });
   }
 
-  add(track: Track, audio: Blob, cover: Blob | null) {
-    return this.run<void>(['tracks', 'covers', 'audio'], 'readwrite', (tx) => {
-      // Blobs are stored as-is (structured clone) — no base64.
-      tx.objectStore('audio').put({ id: track.id, blob: audio } satisfies BlobRecord);
-      if (cover) tx.objectStore('covers').put({ id: track.id, blob: cover } satisfies BlobRecord);
-      tx.objectStore('tracks').put(toRecord(track));
+  getAll<T>(store: StoreName, where?: { index: string; value: Key }) {
+    return this.tx<T[]>([store], 'readonly', (tx, set) => {
+      set([]);
+      const os = tx.objectStore(store);
+      const r = where ? os.index(where.index).getAll(IDBKeyRange.only(where.value)) : os.getAll();
+      r.onsuccess = () => set(r.result as T[]);
     });
   }
 
-  saveMeta(track: Track) {
-    return this.run<void>(['tracks'], 'readwrite', (tx) => {
-      tx.objectStore('tracks').put(toRecord(track));
-    });
-  }
-
-  getAudio(id: string) {
-    return this.run<Blob | null>(['audio'], 'readonly', (tx, set) => {
-      set(null);
-      const req = tx.objectStore('audio').get(id);
-      req.onsuccess = () => set((req.result as BlobRecord | undefined)?.blob ?? null);
-    });
-  }
-
-  remove(id: string) {
-    return this.run<void>(['tracks', 'covers', 'audio'], 'readwrite', (tx) => {
-      for (const name of ['tracks', 'covers', 'audio'] as StoreName[]) tx.objectStore(name).delete(id);
+  write(ops: Op[]) {
+    if (!ops.length) return Promise.resolve();
+    const stores = [...new Set(ops.map((o) => o.store))];
+    return this.tx<void>(stores, 'readwrite', (tx) => {
+      for (const op of ops) {
+        const os = tx.objectStore(op.store);
+        if ('put' in op) os.put(op.put);
+        else if ('del' in op) os.delete(op.del);
+        else {
+          const req = os.index(op.delWhere.index).openKeyCursor(IDBKeyRange.only(op.delWhere.value));
+          req.onsuccess = () => {
+            const cursor = req.result;
+            if (!cursor) return;
+            os.delete(cursor.primaryKey);
+            cursor.continue();
+          };
+        }
+      }
     });
   }
 }
 
-/** Fallback when IndexedDB is unavailable (e.g. some private modes): works for this session only. */
-class MemoryStore implements LibraryStore {
+/** Used when IndexedDB is unavailable (e.g. some private modes): works for this session only. */
+class MemoryBackend implements Backend {
   readonly mode = 'memory' as const;
-  private tracks = new Map<string, Track>();
-  private covers = new Map<string, Blob>();
-  private audio = new Map<string, Blob>();
+  private data = new Map<StoreName, Map<string, Record<string, unknown>>>();
 
-  async loadAll() {
-    return { tracks: [...this.tracks.values()].map(toRecord), covers: new Map(this.covers) };
+  private map(store: StoreName) {
+    let m = this.data.get(store);
+    if (!m) this.data.set(store, (m = new Map()));
+    return m;
   }
-  async add(track: Track, audio: Blob, cover: Blob | null) {
-    this.audio.set(track.id, audio);
-    if (cover) this.covers.set(track.id, cover);
-    this.tracks.set(track.id, toRecord(track));
+  private keyOf(store: StoreName, value: Record<string, unknown>) {
+    const kp = SCHEMA[store].keyPath;
+    return JSON.stringify(Array.isArray(kp) ? kp.map((k) => value[k]) : value[kp]);
   }
-  async saveMeta(track: Track) {
-    this.tracks.set(track.id, toRecord(track));
+
+  async get<T>(store: StoreName, key: Key) {
+    return this.map(store).get(JSON.stringify(key)) as T | undefined;
   }
+  async getAll<T>(store: StoreName, where?: { index: string; value: Key }) {
+    const all = [...this.map(store).values()];
+    if (!where) return all as T[];
+    const path = SCHEMA[store].indexes![where.index];
+    return all.filter((v) => v[path] === where.value) as T[];
+  }
+  async write(ops: Op[]) {
+    for (const op of ops) {
+      const m = this.map(op.store);
+      if ('put' in op) m.set(this.keyOf(op.store, op.put as Record<string, unknown>), op.put as Record<string, unknown>);
+      else if ('del' in op) m.delete(JSON.stringify(op.del));
+      else {
+        const path = SCHEMA[op.store].indexes![op.delWhere.index];
+        for (const [k, v] of m) if (v[path] === op.delWhere.value) m.delete(k);
+      }
+    }
+  }
+}
+
+/* ----------------------------------------------------------------- library */
+
+interface BlobRecord {
+  id: string;
+  blob: Blob;
+}
+
+/** Shared (not per-profile) fields of a track, as stored in `tracks`. */
+type TrackMeta = Omit<Track, 'position' | 'favorite' | 'finished' | 'lastPlayedAt'>;
+
+/** Old v1 records also carried `position`/`favorite` directly on the track. */
+type StoredTrack = TrackMeta & Partial<Pick<Track, 'position' | 'favorite'>>;
+
+export interface LibraryData {
+  tracks: Track[];
+  covers: Map<string, Blob>;
+  bookmarks: Bookmark[];
+  stats: DayStats[];
+}
+
+export function isQuotaError(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name;
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+}
+
+function metaOf(t: Track): TrackMeta {
+  return {
+    id: t.id,
+    title: t.title,
+    album: t.album,
+    artist: t.artist,
+    trackNo: t.trackNo,
+    sizeBytes: t.sizeBytes,
+    duration: t.duration,
+    addedAt: t.addedAt,
+    fileName: t.fileName,
+    mimeType: t.mimeType,
+    hasCover: t.hasCover,
+    chapters: t.chapters,
+  };
+}
+
+export function progressOf(profileId: string, t: Track, updatedAt = Date.now()): Progress {
+  return {
+    profileId,
+    trackId: t.id,
+    position: t.position,
+    favorite: t.favorite,
+    finished: t.finished,
+    lastPlayedAt: t.lastPlayedAt,
+    updatedAt,
+  };
+}
+
+export class LibraryStore {
+  constructor(private db: Backend) {}
+
+  get mode() {
+    return this.db.mode;
+  }
+
+  /* profiles */
+
+  listProfiles() {
+    return this.db.getAll<Profile>('profiles');
+  }
+
+  /** Saves a profile. The very first profile adopts listening progress stored by v1 of the app. */
+  async putProfile(p: Profile) {
+    const ops: Op[] = [{ store: 'profiles', put: p }];
+    const existing = await this.db.getAll<Profile>('profiles');
+    if (existing.length === 0) {
+      for (const t of await this.db.getAll<StoredTrack>('tracks')) {
+        if (t.position || t.favorite) {
+          ops.push({
+            store: 'progress',
+            put: { profileId: p.id, trackId: t.id, position: t.position ?? 0, favorite: !!t.favorite, finished: false, lastPlayedAt: null, updatedAt: Date.now() } satisfies Progress,
+          });
+        }
+      }
+    }
+    await this.db.write(ops);
+  }
+
+  deleteProfile(id: string) {
+    return this.db.write([
+      { store: 'profiles', del: id },
+      { store: 'progress', delWhere: { index: 'profileId', value: id } },
+      { store: 'bookmarks', delWhere: { index: 'profileId', value: id } },
+      { store: 'stats', delWhere: { index: 'profileId', value: id } },
+    ]);
+  }
+
+  /* library */
+
+  async load(profileId: string): Promise<LibraryData> {
+    const [metas, covers, progress, bookmarks, stats] = await Promise.all([
+      this.db.getAll<StoredTrack>('tracks'),
+      this.db.getAll<BlobRecord>('covers'),
+      this.db.getAll<Progress>('progress', { index: 'profileId', value: profileId }),
+      this.db.getAll<Bookmark>('bookmarks', { index: 'profileId', value: profileId }),
+      this.db.getAll<DayStats>('stats', { index: 'profileId', value: profileId }),
+    ]);
+    const byTrack = new Map(progress.map((p) => [p.trackId, p]));
+    const tracks = metas.map((m) => {
+      const p = byTrack.get(m.id);
+      const { position: _legacyPos, favorite: _legacyFav, ...meta } = m;
+      return normalizeTrack({
+        ...meta,
+        position: p?.position ?? 0,
+        favorite: p?.favorite ?? false,
+        finished: p?.finished ?? false,
+        lastPlayedAt: p?.lastPlayedAt ?? null,
+      });
+    });
+    return { tracks, covers: new Map(covers.map((c) => [c.id, c.blob])), bookmarks, stats };
+  }
+
+  add(track: Track, audio: Blob, cover: Blob | null) {
+    // Blobs are stored as-is (structured clone) — no base64.
+    const ops: Op[] = [
+      { store: 'audio', put: { id: track.id, blob: audio } satisfies BlobRecord },
+      { store: 'tracks', put: metaOf(track) },
+    ];
+    if (cover) ops.push({ store: 'covers', put: { id: track.id, blob: cover } satisfies BlobRecord });
+    return this.db.write(ops);
+  }
+
+  saveMeta(track: Track) {
+    return this.db.write([{ store: 'tracks', put: metaOf(track) }]);
+  }
+
+  saveProgress(p: Progress) {
+    return this.db.write([{ store: 'progress', put: p }]);
+  }
+
+  saveProgressMany(list: Progress[]) {
+    return this.db.write(list.map((p) => ({ store: 'progress' as const, put: p })));
+  }
+
+  getProgress(profileId: string) {
+    return this.db.getAll<Progress>('progress', { index: 'profileId', value: profileId });
+  }
+
   async getAudio(id: string) {
-    return this.audio.get(id) ?? null;
+    return (await this.db.get<BlobRecord>('audio', id))?.blob ?? null;
   }
-  async remove(id: string) {
-    this.tracks.delete(id);
-    this.covers.delete(id);
-    this.audio.delete(id);
+
+  /** Deletes the track, its blobs and every profile's progress and bookmarks for it. */
+  remove(id: string) {
+    return this.db.write([
+      { store: 'tracks', del: id },
+      { store: 'covers', del: id },
+      { store: 'audio', del: id },
+      { store: 'progress', delWhere: { index: 'trackId', value: id } },
+      { store: 'bookmarks', delWhere: { index: 'trackId', value: id } },
+    ]);
+  }
+
+  putBookmarks(list: Bookmark[]) {
+    return this.db.write(list.map((b) => ({ store: 'bookmarks' as const, put: b })));
+  }
+
+  getBookmarks(profileId: string) {
+    return this.db.getAll<Bookmark>('bookmarks', { index: 'profileId', value: profileId });
+  }
+
+  putStats(s: DayStats) {
+    return this.db.write([{ store: 'stats', put: s }]);
   }
 }
 
 export async function openLibraryStore(): Promise<{ store: LibraryStore; error: unknown }> {
   try {
     if (typeof indexedDB === 'undefined') throw new Error('IndexedDB is not supported in this browser');
-    const db = await openDatabase();
-    const store = new IdbStore(db);
-    await store.getAudio('\u0000probe'); // smoke test: some private modes open fine but fail on use
-    return { store, error: null };
+    const backend = new IdbBackend(await openDatabase());
+    await backend.get('audio', '\u0000probe'); // smoke test: some private modes open fine but fail on use
+    return { store: new LibraryStore(backend), error: null };
   } catch (error) {
     console.warn('[shruti] persistent storage unavailable, using memory', error);
-    return { store: new MemoryStore(), error };
+    return { store: new LibraryStore(new MemoryBackend()), error };
   }
 }
+
+/** For tests. */
+export function memoryLibraryStore() {
+  return new LibraryStore(new MemoryBackend());
+}
+
+/* ----------------------------------------------------------- browser quota */
 
 /** Ask the browser not to evict our data under storage pressure. */
 export async function requestPersistence(): Promise<boolean | null> {
@@ -198,11 +368,19 @@ export async function requestPersistence(): Promise<boolean | null> {
   }
 }
 
-export async function freeSpaceBytes(): Promise<number | null> {
+export async function isPersisted(): Promise<boolean | null> {
+  try {
+    return navigator.storage?.persisted ? await navigator.storage.persisted() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function storageEstimate(): Promise<{ usage: number; quota: number } | null> {
   try {
     const est = await navigator.storage?.estimate?.();
     if (!est?.quota) return null;
-    return est.quota - (est.usage ?? 0);
+    return { usage: est.usage ?? 0, quota: est.quota };
   } catch {
     return null;
   }

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { freeSpaceBytes, isQuotaError, openLibraryStore, requestPersistence, type LibraryStore } from '../lib/db';
+import { isQuotaError, progressOf, requestPersistence, storageEstimate, type LibraryStore } from '../lib/db';
 import { guessMime, isAudioFile, titleFromFileName, trackIdFor, trackNoFromFileName } from '../lib/filename';
 import { parseTrackNumber, readTags, type Id3Tags } from '../lib/id3';
-import type { Track } from '../lib/types';
+import type { Bookmark, DayStats, Track } from '../lib/types';
 
 export interface ImportProgress {
   done: number;
@@ -20,138 +20,231 @@ export interface ImportResult {
   persisted: boolean | null;
 }
 
+type ProgressPatch = Partial<Pick<Track, 'position' | 'favorite' | 'finished' | 'lastPlayedAt'>>;
+type MetaPatch = Partial<Pick<Track, 'title' | 'duration'>>;
+
 /** How often (in files) to publish newly imported tracks to the UI during an import. */
 const PUBLISH_EVERY = 5;
+const STATS_FLUSH_MS = 20_000;
 
-export function useLibrary() {
-  const [store, setStore] = useState<LibraryStore | null>(null);
-  const [storageError, setStorageError] = useState<unknown>(null);
-  const [writeError, setWriteError] = useState(false);
+export function dayKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+
+/**
+ * The library as seen by one profile: shared tracks and covers, plus that
+ * profile's own progress, favorites, bookmarks and listening stats.
+ */
+export function useLibrary(store: LibraryStore, profileId: string, onLocalChange: () => void) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [coverUrls, setCoverUrls] = useState<ReadonlyMap<string, string>>(new Map());
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [stats, setStats] = useState<ReadonlyMap<string, DayStats>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [writeError, setWriteError] = useState(false);
 
-  // Mirrors of state for use inside async flows/callbacks without stale closures.
   const tracksRef = useRef<Track[]>([]);
-  const storeRef = useRef<LibraryStore | null>(null);
+  const bookmarksRef = useRef<Bookmark[]>([]);
+  const statsRef = useRef(new Map<string, DayStats>());
+  const dirtyStats = useRef(new Set<string>());
   const coversRef = useRef(new Map<string, string>());
+  const changed = useRef(onLocalChange);
+  changed.current = onLocalChange;
 
   const commit = useCallback((next: Track[]) => {
     tracksRef.current = next;
     setTracks(next);
   }, []);
-
+  const commitBookmarks = useCallback((next: Bookmark[]) => {
+    bookmarksRef.current = next;
+    setBookmarks(next);
+  }, []);
   const publishCovers = useCallback(() => setCoverUrls(new Map(coversRef.current)), []);
-
-  // Open the DB and load the library once on startup.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { store, error } = await openLibraryStore();
-      let data: Awaited<ReturnType<LibraryStore['loadAll']>> = { tracks: [], covers: new Map() };
-      try {
-        data = await store.loadAll();
-      } catch (e) {
-        console.warn('[shruti] failed to load library', e);
-        if (!cancelled) setStorageError(e);
-      }
-      if (cancelled) return;
-      storeRef.current = store;
-      setStore(store);
-      if (error) setStorageError(error);
-      for (const [id, blob] of data.covers) coversRef.current.set(id, URL.createObjectURL(blob));
-      publishCovers();
-      commit(data.tracks);
-      setLoaded(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [commit, publishCovers]);
-
-  const persist = useCallback((t: Track) => {
-    storeRef.current?.saveMeta(t).catch((e) => {
-      console.warn('[shruti] failed to save track', e);
-      setWriteError(true);
-    });
+  const fail = useCallback((e: unknown) => {
+    console.warn('[shruti] storage write failed', e);
+    setWriteError(true);
   }, []);
 
-  /** Patch a track in memory and persist it. Ignores ids that no longer exist (e.g. just deleted). */
-  const updateTrack = useCallback(
-    (id: string, patch: Partial<Track>) => {
+  const loadFromStore = useCallback(async () => {
+    const data = await store.load(profileId);
+    for (const [id, blob] of data.covers) if (!coversRef.current.has(id)) coversRef.current.set(id, URL.createObjectURL(blob));
+    publishCovers();
+    commit(data.tracks);
+    commitBookmarks(data.bookmarks);
+    statsRef.current = new Map(data.stats.map((s) => [s.day, s]));
+    setStats(new Map(statsRef.current));
+  }, [store, profileId, commit, commitBookmarks, publishCovers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadFromStore()
+      .catch(fail)
+      .finally(() => !cancelled && setLoaded(true));
+    const covers = coversRef.current;
+    return () => {
+      cancelled = true;
+      for (const url of covers.values()) URL.revokeObjectURL(url);
+      covers.clear();
+    };
+  }, [loadFromStore, fail]);
+
+  /* ------------------------------------------------------------ tracks */
+
+  const patchTrack = useCallback(
+    (id: string, patch: ProgressPatch & MetaPatch, kind: 'progress' | 'meta') => {
       const cur = tracksRef.current;
       const i = cur.findIndex((t) => t.id === id);
-      if (i < 0) return;
+      if (i < 0) return; // e.g. just deleted
       const updated = { ...cur[i], ...patch };
       const next = cur.slice();
       next[i] = updated;
       commit(next);
-      persist(updated);
+      if (kind === 'meta') store.saveMeta(updated).catch(fail);
+      else {
+        store.saveProgress(progressOf(profileId, updated)).catch(fail);
+        changed.current();
+      }
     },
-    [commit, persist],
+    [commit, store, profileId, fail],
   );
 
-  const toggleFavorite = useCallback(
-    (id: string) => {
-      const t = tracksRef.current.find((x) => x.id === id);
-      if (t) updateTrack(id, { favorite: !t.favorite });
-    },
-    [updateTrack],
-  );
+  const find = (id: string) => tracksRef.current.find((t) => t.id === id);
+
+  const toggleFavorite = useCallback((id: string) => {
+    const t = find(id);
+    if (t) patchTrack(id, { favorite: !t.favorite }, 'progress');
+  }, [patchTrack]);
+
+  const setFinished = useCallback((id: string, finished: boolean) => {
+    patchTrack(id, finished ? { finished: true, position: 0 } : { finished: false }, 'progress');
+  }, [patchTrack]);
 
   const savePosition = useCallback(
-    (id: string, position: number) => {
-      const t = tracksRef.current.find((x) => x.id === id);
-      if (!t || !Number.isFinite(position)) return;
-      const rounded = Math.max(0, Math.round(position * 10) / 10);
-      if (rounded !== t.position) updateTrack(id, { position: rounded });
+    (id: string, seconds: number, finished: boolean) => {
+      const t = find(id);
+      if (!t || !Number.isFinite(seconds)) return;
+      if (finished) {
+        if (!t.finished || t.position !== 0) patchTrack(id, { position: 0, finished: true }, 'progress');
+        return;
+      }
+      const position = Math.max(0, Math.round(seconds * 10) / 10);
+      // Listening again to a finished episode moves it back to "in progress".
+      if (position !== t.position || (t.finished && position > 0)) patchTrack(id, { position, finished: t.finished && position === 0 }, 'progress');
     },
-    [updateTrack],
+    [patchTrack],
   );
+
+  const markPlayed = useCallback((id: string) => patchTrack(id, { lastPlayedAt: Date.now() }, 'progress'), [patchTrack]);
 
   const setDuration = useCallback(
     (id: string, duration: number) => {
-      const t = tracksRef.current.find((x) => x.id === id);
-      if (t && (t.duration == null || Math.abs(t.duration - duration) > 1)) updateTrack(id, { duration });
+      const t = find(id);
+      if (t && (t.duration == null || Math.abs(t.duration - duration) > 1)) patchTrack(id, { duration }, 'meta');
     },
-    [updateTrack],
+    [patchTrack],
   );
+
+  const rename = useCallback((id: string, title: string) => {
+    const clean = title.trim();
+    if (clean) patchTrack(id, { title: clean }, 'meta');
+  }, [patchTrack]);
 
   const removeTrack = useCallback(
     async (id: string) => {
       commit(tracksRef.current.filter((t) => t.id !== id));
+      commitBookmarks(bookmarksRef.current.filter((b) => b.trackId !== id));
       const url = coversRef.current.get(id);
       if (url) {
         coversRef.current.delete(id);
         URL.revokeObjectURL(url);
         publishCovers();
       }
-      try {
-        await storeRef.current?.remove(id);
-      } catch (e) {
-        console.warn('[shruti] failed to delete track', e);
-        setWriteError(true);
-      }
+      await store.remove(id).catch(fail);
     },
-    [commit, publishCovers],
+    [commit, commitBookmarks, publishCovers, store, fail],
   );
+
+  /* --------------------------------------------------------- bookmarks */
+
+  const putBookmark = useCallback(
+    (b: Bookmark) => {
+      const rest = bookmarksRef.current.filter((x) => x.id !== b.id);
+      commitBookmarks([...rest, b]);
+      store.putBookmarks([b]).catch(fail);
+      changed.current();
+    },
+    [commitBookmarks, store, fail],
+  );
+
+  const addBookmark = useCallback(
+    (trackId: string, time: number, note = '') => {
+      const now = Date.now();
+      const b: Bookmark = { id: newId(), profileId, trackId, time: Math.round(time * 10) / 10, note, createdAt: now, updatedAt: now };
+      putBookmark(b);
+      return b;
+    },
+    [profileId, putBookmark],
+  );
+
+  const editBookmark = useCallback(
+    (id: string, note: string) => {
+      const b = bookmarksRef.current.find((x) => x.id === id);
+      if (b) putBookmark({ ...b, note, updatedAt: Date.now() });
+    },
+    [putBookmark],
+  );
+
+  const deleteBookmark = useCallback(
+    (id: string) => {
+      const b = bookmarksRef.current.find((x) => x.id === id);
+      // Keep a tombstone so the deletion also reaches other synced devices.
+      if (b) putBookmark({ ...b, deleted: true, updatedAt: Date.now() });
+    },
+    [putBookmark],
+  );
+
+  /* ------------------------------------------------------------- stats */
+
+  const flushStats = useCallback(() => {
+    for (const day of dirtyStats.current) {
+      const s = statsRef.current.get(day);
+      if (s) store.putStats(s).catch(fail);
+    }
+    dirtyStats.current.clear();
+    setStats(new Map(statsRef.current));
+  }, [store, fail]);
+
+  const addListening = useCallback(
+    (seconds: number, savedSeconds: number) => {
+      const day = dayKey();
+      const cur = statsRef.current.get(day) ?? { profileId, day, seconds: 0, savedSeconds: 0 };
+      statsRef.current.set(day, { ...cur, seconds: cur.seconds + seconds, savedSeconds: cur.savedSeconds + savedSeconds });
+      dirtyStats.current.add(day);
+    },
+    [profileId],
+  );
+
+  useEffect(() => {
+    const timer = setInterval(flushStats, STATS_FLUSH_MS);
+    window.addEventListener('pagehide', flushStats);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pagehide', flushStats);
+      flushStats();
+    };
+  }, [flushStats]);
+
+  /* ------------------------------------------------------------ import */
 
   const importFiles = useCallback(
     async (picked: File[]): Promise<ImportResult> => {
-      const store = storeRef.current;
-      const result: ImportResult = {
-        added: 0,
-        skipped: 0,
-        failed: 0,
-        noAudio: false,
-        quotaHit: false,
-        lowSpaceWarning: false,
-        persisted: null,
-      };
+      const result: ImportResult = { added: 0, skipped: 0, failed: 0, noAudio: false, quotaHit: false, lowSpaceWarning: false, persisted: null };
       const files = picked.filter(isAudioFile);
-      if (!store || files.length === 0) {
-        result.noAudio = files.length === 0;
+      if (files.length === 0) {
+        result.noAudio = true;
         return result;
       }
 
@@ -160,8 +253,8 @@ export function useLibrary() {
       result.skipped = files.length - fresh.length;
 
       const needed = fresh.reduce((sum, f) => sum + f.size, 0);
-      const free = await freeSpaceBytes();
-      if (free != null && needed > free) result.lowSpaceWarning = true;
+      const est = await storageEstimate();
+      if (est && needed > est.quota - est.usage) result.lowSpaceWarning = true;
 
       let pending: Track[] = [];
       const flush = () => {
@@ -207,6 +300,9 @@ export function useLibrary() {
             fileName: file.name,
             mimeType,
             hasCover: cover != null,
+            finished: false,
+            lastPlayedAt: null,
+            chapters: (tags.chapters ?? []).map((c, n) => ({ start: c.start, title: c.title || `অধ্যায় ${n + 1}` })),
           };
 
           try {
@@ -234,22 +330,32 @@ export function useLibrary() {
       if (result.added > 0 && store.mode === 'indexeddb') result.persisted = await requestPersistence();
       return result;
     },
-    [commit, publishCovers],
+    [commit, publishCovers, store],
   );
 
   return {
-    store,
     loaded,
     tracks,
     tracksRef,
     coverUrls,
+    bookmarks,
+    stats,
     progress,
-    storageError,
     writeError,
+    reload: loadFromStore,
     importFiles,
     toggleFavorite,
+    setFinished,
     savePosition,
+    markPlayed,
     setDuration,
+    rename,
     removeTrack,
+    addBookmark,
+    editBookmark,
+    deleteBookmark,
+    addListening,
   };
 }
+
+export type Library = ReturnType<typeof useLibrary>;

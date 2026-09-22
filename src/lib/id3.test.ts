@@ -133,6 +133,16 @@ describe('parseId3v2', () => {
     expect(parseId3v2(cat(ascii('ID3'), [3, 0, 0x40], ss(body.length), body)).title).toBe('Ext');
   });
 
+  it('reads CHAP chapter frames with embedded titles', () => {
+    const chap = (id: string, startMs: number, title: string) =>
+      cat(ascii(id), [0], be32(startMs), be32(startMs + 1000), be32(0xffffffff), be32(0xffffffff), frame(3, 'TIT2', [3, ...enc.encode(title)]));
+    const tags = parseId3v2(tag(3, [frame(3, 'CHAP', chap('ch2', 90_000, 'দ্বিতীয় ভাগ')), frame(3, 'CHAP', chap('ch1', 0, 'শুরু'))]));
+    expect(tags.chapters).toEqual([
+      { start: 0, title: 'শুরু' },
+      { start: 90, title: 'দ্বিতীয় ভাগ' },
+    ]);
+  });
+
   it('returns {} for non-ID3 data', () => {
     expect(parseId3v2(new Uint8Array([0xff, 0xfb, 0x90, 0x64, 0, 0, 0, 0, 0, 0]))).toEqual({});
   });

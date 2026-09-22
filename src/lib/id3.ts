@@ -9,7 +9,14 @@ export interface Id3Picture {
   data: Uint8Array<ArrayBuffer>;
 }
 
+export interface Id3Chapter {
+  /** Seconds. */
+  start: number;
+  title?: string;
+}
+
 export interface Id3Tags {
+  chapters?: Id3Chapter[];
   title?: string;
   album?: string;
   artist?: string;
@@ -111,7 +118,7 @@ function parsePicture(fd: Uint8Array, version: number): Id3Picture | null {
   return { mime, type, data };
 }
 
-const FRAME_KEYS: Record<string, keyof Omit<Id3Tags, 'picture'>> = {
+const FRAME_KEYS: Record<string, keyof Omit<Id3Tags, 'picture' | 'chapters'>> = {
   TIT2: 'title',
   TT2: 'title',
   TALB: 'album',
@@ -126,31 +133,10 @@ const FRAME_KEYS: Record<string, keyof Omit<Id3Tags, 'picture'>> = {
 
 const isFrameId = (s: string) => /^[A-Z0-9]{3,4}$/.test(s);
 
-/**
- * Parse an ID3v2 tag from a buffer that begins with the "ID3" header and
- * contains the full tag. Returns {} if the buffer is not a supported tag.
- */
-export function parseId3v2(buf: Uint8Array): Id3Tags {
-  if (buf.length < 10 || ascii(buf, 0, 3) !== 'ID3') return {};
-  const version = buf[3];
-  if (version < 2 || version > 4) return {};
-  const flags = buf[5];
-  const size = synchsafe(buf, 6);
-  let data = buf.subarray(10, Math.min(buf.length, 10 + size));
-
-  // v2.2/v2.3 unsynchronise the whole tag; v2.4 does it per frame.
-  if (flags & 0x80 && version < 4) data = removeUnsync(data);
-
-  let pos = 0;
-  if (flags & 0x40 && version >= 3) {
-    // Extended header: v2.3 size excludes its own 4 bytes, v2.4 is synchsafe and includes them.
-    pos = version === 3 ? 4 + uint32(data, 0) : synchsafe(data, 0);
-  }
-
+/** Walk the frames in `data` starting at `pos`, calling `onFrame` with each frame's decoded body. */
+function iterateFrames(data: Uint8Array, pos: number, version: number, onFrame: (id: string, body: Uint8Array) => void) {
   const idLen = version === 2 ? 3 : 4;
   const headerLen = version === 2 ? 6 : 10;
-  const tags: Id3Tags = {};
-  const pictures: Id3Picture[] = [];
 
   const frameSize = (at: number): number => {
     if (version === 2) return (data[at + 3] << 16) | (data[at + 4] << 8) | data[at + 5];
@@ -161,10 +147,8 @@ export function parseId3v2(buf: Uint8Array): Id3Tags {
     const ss = synchsafe(data, at + 4);
     const plain = uint32(data, at + 4);
     if (ss !== plain) {
-      const nextSs = at + 10 + ss;
-      const nextPlain = at + 10 + plain;
       const okAt = (n: number) => n === data.length || (n + 4 <= data.length && (data[n] === 0 || isFrameId(ascii(data, n, 4))));
-      if (!okAt(nextSs) && okAt(nextPlain)) return plain;
+      if (!okAt(at + 10 + ss) && okAt(at + 10 + plain)) return plain;
     }
     return ss;
   };
@@ -188,8 +172,50 @@ export function parseId3v2(buf: Uint8Array): Id3Tags {
       if (fflags & 0x0001) fd = fd.subarray(4); // data length indicator
       if (fflags & 0x0002) fd = removeUnsync(fd);
     }
-    if (fd.length === 0) continue;
+    if (fd.length > 0) onFrame(id, fd);
+  }
+}
 
+/** CHAP frame (ID3v2 chapter addendum): element id, start/end ms, byte offsets, then sub-frames. */
+function parseChapter(fd: Uint8Array, version: number): Id3Chapter | null {
+  const idEnd = afterTerminator(fd, 0, 0);
+  if (idEnd + 16 > fd.length) return null;
+  const chapter: Id3Chapter = { start: uint32(fd, idEnd) / 1000 };
+  iterateFrames(fd, idEnd + 16, version, (id, body) => {
+    if ((id === 'TIT2' || id === 'TIT3') && !chapter.title) {
+      const title = decodeText(body.subarray(1), body[0]);
+      if (title) chapter.title = title;
+    }
+  });
+  return chapter;
+}
+
+/**
+ * Parse an ID3v2 tag from a buffer that begins with the "ID3" header and
+ * contains the full tag. Returns {} if the buffer is not a supported tag.
+ */
+export function parseId3v2(buf: Uint8Array): Id3Tags {
+  if (buf.length < 10 || ascii(buf, 0, 3) !== 'ID3') return {};
+  const version = buf[3];
+  if (version < 2 || version > 4) return {};
+  const flags = buf[5];
+  const size = synchsafe(buf, 6);
+  let data = buf.subarray(10, Math.min(buf.length, 10 + size));
+
+  // v2.2/v2.3 unsynchronise the whole tag; v2.4 does it per frame.
+  if (flags & 0x80 && version < 4) data = removeUnsync(data);
+
+  let pos = 0;
+  if (flags & 0x40 && version >= 3) {
+    // Extended header: v2.3 size excludes its own 4 bytes, v2.4 is synchsafe and includes them.
+    pos = version === 3 ? 4 + uint32(data, 0) : synchsafe(data, 0);
+  }
+
+  const tags: Id3Tags = {};
+  const pictures: Id3Picture[] = [];
+  const chapters: Id3Chapter[] = [];
+
+  iterateFrames(data, pos, version, (id, fd) => {
     const key = FRAME_KEYS[id];
     if (key) {
       if (!tags[key]) {
@@ -199,9 +225,13 @@ export function parseId3v2(buf: Uint8Array): Id3Tags {
     } else if (id === 'APIC' || id === 'PIC') {
       const pic = parsePicture(fd, version);
       if (pic) pictures.push(pic);
+    } else if (id === 'CHAP' && version >= 3) {
+      const ch = parseChapter(fd, version);
+      if (ch) chapters.push(ch);
     }
-  }
+  });
 
+  if (chapters.length) tags.chapters = chapters.sort((a, b) => a.start - b.start);
   // Prefer the front cover (type 3), else whatever came first.
   const picture = pictures.find((p) => p.type === 3) ?? pictures[0];
   if (picture) tags.picture = picture;

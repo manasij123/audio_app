@@ -1,54 +1,54 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { formatTime } from '../lib/format';
-import type { Track } from '../lib/types';
+import { memo } from 'react';
+import { formatDuration, formatTime } from '../lib/format';
+import { trackStatus, type Track } from '../lib/types';
 import { Cover } from './Cover';
-import { StarIcon, TrashIcon } from './Icons';
-
-const CONFIRM_WINDOW_MS = 4000;
+import { MoreIcon, StarIcon } from './Icons';
 
 interface Props {
   track: Track;
   coverUrl?: string;
   isCurrent: boolean;
   isPlaying: boolean;
+  queued: boolean;
   onPlay(id: string): void;
   onToggleFavorite(id: string): void;
-  onDelete(id: string): void;
+  onMore(id: string): void;
 }
 
-export const TrackRow = memo(function TrackRow({ track, coverUrl, isCurrent, isPlaying, onPlay, onToggleFavorite, onDelete }: Props) {
-  const [confirming, setConfirming] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+export function StatusLabel({ track }: { track: Track }) {
+  const status = trackStatus(track);
+  if (status === 'finished') return <span className="pill done">✓ শোনা শেষ</span>;
+  if (status === 'progress') {
+    const left = track.duration ? track.duration - track.position : null;
+    return <span className="pill progress">{left != null ? `${formatDuration(left)} বাকি` : `▶ ${formatTime(track.position)}`}</span>;
+  }
+  return <span className="pill new">নতুন</span>;
+}
 
-  const handleDelete = () => {
-    clearTimeout(timer.current);
-    if (confirming) {
-      setConfirming(false);
-      onDelete(track.id);
-      return;
-    }
-    setConfirming(true);
-    timer.current = window.setTimeout(() => setConfirming(false), CONFIRM_WINDOW_MS);
-  };
-
+export const TrackRow = memo(function TrackRow({ track, coverUrl, isCurrent, isPlaying, queued, onPlay, onToggleFavorite, onMore }: Props) {
   const { duration, position } = track;
-  const pct = duration && position > 0 ? Math.min(100, (position / duration) * 100) : 0;
+  const pct = duration && position > 0 && !track.finished ? Math.min(100, (position / duration) * 100) : 0;
 
   return (
-    <li className={`row${isCurrent ? ' is-current' : ''}${confirming ? ' is-confirming' : ''}`}>
+    <li className={`row${isCurrent ? ' is-current' : ''}`}>
       <button type="button" className="row-main" onClick={() => onPlay(track.id)} aria-current={isCurrent || undefined}>
-        <Cover url={coverUrl} className="cover-sm" />
+        <span className="row-art">
+          <Cover url={coverUrl} title={track.title} size="sm" />
+          {isCurrent && (
+            <span className={`eq${isPlaying ? ' on' : ''}`} aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+          )}
+        </span>
         <span className="row-info">
           <span className="row-title">{track.title}</span>
           <span className="row-meta">
             {track.trackNo != null && <span className="row-no">#{track.trackNo}</span>}
             <span>{formatTime(duration)}</span>
-            {isCurrent ? (
-              <span className="row-now">{isPlaying ? '● বাজছে · playing' : 'paused'}</span>
-            ) : position > 0 ? (
-              <span className="row-resume">resume {formatTime(position)}</span>
-            ) : null}
+            <StatusLabel track={track} />
+            {queued && <span className="pill queued">পরের তালিকায়</span>}
           </span>
           {pct > 0 && (
             <span className="row-progress" aria-hidden>
@@ -62,17 +62,12 @@ export const TrackRow = memo(function TrackRow({ track, coverUrl, isCurrent, isP
         className={`icon-btn star${track.favorite ? ' on' : ''}`}
         onClick={() => onToggleFavorite(track.id)}
         aria-pressed={track.favorite}
-        aria-label={track.favorite ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={track.favorite ? `Remove ${track.title} from favourites` : `Add ${track.title} to favourites`}
       >
         <StarIcon filled={track.favorite} />
       </button>
-      <button
-        type="button"
-        className={`icon-btn del${confirming ? ' confirm' : ''}`}
-        onClick={handleDelete}
-        aria-label={confirming ? `Tap again to delete ${track.title}` : `Delete ${track.title}`}
-      >
-        {confirming ? <span className="del-label">মুছবেন?</span> : <TrashIcon />}
+      <button type="button" className="icon-btn" onClick={() => onMore(track.id)} aria-label={`More actions for ${track.title}`}>
+        <MoreIcon />
       </button>
     </li>
   );
