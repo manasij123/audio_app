@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { formatBytes, formatTime } from '../lib/format';
 import type { Track } from '../lib/types';
 import { Cover } from './Cover';
-import { BookmarkIcon, CheckIcon, EditIcon, PauseIcon, PlayIcon, PlusIcon, QueueIcon, StarIcon, TrashIcon } from './Icons';
+import { tagLabel } from '../lib/genres';
+import { BookmarkIcon, CheckIcon, EditIcon, MasksIcon, PauseIcon, PlayIcon, PlusIcon, QueueIcon, StarIcon, TrashIcon } from './Icons';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
   onToggleFavorite(): void;
   onSetFinished(finished: boolean): void;
   onBookmarks(): void;
+  onGenres(): void;
   onRename(title: string): void;
   onDelete(): void;
 }
@@ -113,6 +115,12 @@ export function TrackMenu(p: Props) {
           <li>
             <button type="button" onClick={act(p.onBookmarks)}>
               <BookmarkIcon /> বুকমার্ক · Bookmarks {p.bookmarkCount > 0 && <span className="count">{p.bookmarkCount}</span>}
+            </button>
+          </li>
+          <li>
+            <button type="button" onClick={act(p.onGenres)}>
+              <MasksIcon /> ধরন · Genre
+              <span className="count">{track.genres?.length ? track.genres.map(tagLabel).join(', ') : 'দেওয়া হয়নি'}</span>
             </button>
           </li>
           <li>

@@ -205,6 +205,7 @@ function metaOf(t: Track): TrackMeta {
     mimeType: t.mimeType,
     hasCover: t.hasCover,
     chapters: t.chapters,
+    genres: t.genres,
   };
 }
 

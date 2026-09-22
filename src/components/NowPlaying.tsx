@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { dominantColor, hashHue } from '../lib/art';
 import { getEngine, useEngine } from '../lib/engine';
 import { formatDuration, formatRate, formatTime } from '../lib/format';
+import { tagLabel } from '../lib/genres';
 import type { Bookmark, Track } from '../lib/types';
 import { Cover } from './Cover';
 import { BookmarkIcon, ChaptersIcon, ChevronDownIcon, GaugeIcon, MoonIcon, MoreIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, QueueIcon, SkipIcon, SlidersIcon, StarIcon } from './Icons';
@@ -86,6 +87,13 @@ export function NowPlaying(p: Props) {
           <p className="np-sub">
             {[track.trackNo != null ? `পর্ব ${track.trackNo}` : null, track.artist].filter(Boolean).join(' · ') || 'শ্রুতি'}
           </p>
+          {!!track.genres?.length && (
+            <p className="np-genres">
+              {track.genres.map((g) => (
+                <span key={g}>{tagLabel(g)}</span>
+              ))}
+            </p>
+          )}
         </div>
         <button type="button" className={`icon-btn star${track.favorite ? ' on' : ''}`} onClick={p.onToggleFavorite} aria-pressed={track.favorite} aria-label="Favourite">
           <StarIcon filled={track.favorite} />

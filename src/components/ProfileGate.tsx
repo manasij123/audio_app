@@ -5,8 +5,7 @@ import { hashPin, pinSupported, verifyPin } from '../lib/pin';
 import type { GoogleLink, Profile } from '../lib/types';
 import { Avatar } from './Avatar';
 import { GoogleIcon, LockIcon, PlusIcon } from './Icons';
-import { Logo } from './Logo';
-import { Verse } from './Verse';
+import { LogoWithVerse } from './Verse';
 import { PinPad } from './PinPad';
 
 const SESSION_KEY = 'shruti.session';
@@ -139,7 +138,7 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
   return (
     <div className="gate">
       <div className="gate-brand">
-        <Logo size={232} className="gate-logo" />
+        <LogoWithVerse />
       </div>
 
       {view.kind === 'pick' && (
@@ -221,7 +220,6 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
         />
       )}
 
-      <Verse />
     </div>
   );
 }

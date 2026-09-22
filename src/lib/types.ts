@@ -32,6 +32,8 @@ export interface Track {
   finished: boolean;
   lastPlayedAt: number | null;
   chapters: Chapter[];
+  /** Genre tags ("horror" or "horror.tantrik"); null = never classified (tracks from before genres existed). */
+  genres: string[] | null;
 }
 
 /** Per-profile listening state for one track (the `progress` store). */
@@ -114,6 +116,7 @@ export function normalizeTrack(t: Partial<Track> & Pick<Track, 'id' | 'title'>):
     finished: false,
     lastPlayedAt: null,
     chapters: [],
+    genres: null,
     ...t,
   };
 }

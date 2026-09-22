@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isQuotaError, progressOf, requestPersistence, storageEstimate, type LibraryStore } from '../lib/db';
 import { guessMime, isAudioFile, titleFromFileName, trackIdFor, trackNoFromFileName } from '../lib/filename';
+import { detectGenres } from '../lib/genres';
 import { parseTrackNumber, readTags, type Id3Tags } from '../lib/id3';
 import type { Bookmark, DayStats, Track } from '../lib/types';
 
@@ -21,7 +22,7 @@ export interface ImportResult {
 }
 
 type ProgressPatch = Partial<Pick<Track, 'position' | 'favorite' | 'finished' | 'lastPlayedAt'>>;
-type MetaPatch = Partial<Pick<Track, 'title' | 'duration'>>;
+type MetaPatch = Partial<Pick<Track, 'title' | 'duration' | 'genres'>>;
 
 /** How often (in files) to publish newly imported tracks to the UI during an import. */
 const PUBLISH_EVERY = 5;
@@ -72,7 +73,10 @@ export function useLibrary(store: LibraryStore, profileId: string, onLocalChange
     const data = await store.load(profileId);
     for (const [id, blob] of data.covers) if (!coversRef.current.has(id)) coversRef.current.set(id, URL.createObjectURL(blob));
     publishCovers();
-    commit(data.tracks);
+    // Tracks imported before genres existed get classified once from their names.
+    const tracks = data.tracks.map((t) => (t.genres == null ? { ...t, genres: detectGenres(t.title, t.album, t.id) } : t));
+    for (const t of tracks) if (data.tracks.find((o) => o.id === t.id)?.genres == null) store.saveMeta(t).catch(() => {});
+    commit(tracks);
     commitBookmarks(data.bookmarks);
     statsRef.current = new Map(data.stats.map((s) => [s.day, s]));
     setStats(new Map(statsRef.current));
@@ -146,6 +150,8 @@ export function useLibrary(store: LibraryStore, profileId: string, onLocalChange
     },
     [patchTrack],
   );
+
+  const setGenres = useCallback((id: string, genres: string[]) => patchTrack(id, { genres }, 'meta'), [patchTrack]);
 
   const rename = useCallback((id: string, title: string) => {
     const clean = title.trim();
@@ -240,7 +246,8 @@ export function useLibrary(store: LibraryStore, profileId: string, onLocalChange
   /* ------------------------------------------------------------ import */
 
   const importFiles = useCallback(
-    async (picked: File[]): Promise<ImportResult> => {
+    /** `genres`: tags to give every imported file; omit to detect them from each file's names. */
+    async (picked: File[], genres?: string[]): Promise<ImportResult> => {
       const result: ImportResult = { added: 0, skipped: 0, failed: 0, noAudio: false, quotaHit: false, lowSpaceWarning: false, persisted: null };
       const files = picked.filter(isAudioFile);
       if (files.length === 0) {
@@ -303,7 +310,9 @@ export function useLibrary(store: LibraryStore, profileId: string, onLocalChange
             finished: false,
             lastPlayedAt: null,
             chapters: (tags.chapters ?? []).map((c, n) => ({ start: c.start, title: c.title || `অধ্যায় ${n + 1}` })),
+            genres: null,
           };
+          track.genres = genres ?? detectGenres(track.title, track.album, file.webkitRelativePath || file.name);
 
           try {
             await store.add(track, audio, cover);
@@ -350,6 +359,7 @@ export function useLibrary(store: LibraryStore, profileId: string, onLocalChange
     markPlayed,
     setDuration,
     rename,
+    setGenres,
     removeTrack,
     addBookmark,
     editBookmark,

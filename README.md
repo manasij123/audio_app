@@ -47,7 +47,19 @@ entirely in the browser. Your audio files never leave the device.
 - Lock-screen and notification controls use the Media Session API. On desktop, Space plays or
   pauses and ←/→ skip.
 
-**Branding:** the Shruti logo (`public/logo.webp`) appears on the login screen and home screen and is used for the app icons; the palette (warm black, blood red, bone white) and the Galada display face follow the logo.
+**Branding:** the Shruti logo (`public/logo.webp`) appears on the login screen (with the Shruti rhyme floating beside the five words painted on it; on phones the couplets appear one at a time) and home screen and is used for the app icons; the palette (warm black, blood red, bone white) and the Galada display face follow the logo.
+
+**Genres (ধরন tab)**
+- Five main genres with sub-genres: গোয়েন্দা ও রহস্য (6), থ্রিলার (12), ভৌতিক ও হরর (8),
+  অ্যাডভেঞ্চার (4), কল্পবিজ্ঞান ও ফ্যান্টাসি (2). The taxonomy lives in `src/lib/genres.ts`.
+- Tap a genre card or any sub-genre chip to see its stories; previous/next then follow that list.
+- A story can have several genres. They are set three ways:
+  - **At import:** choose "detect automatically" or give the whole batch the same genres.
+  - **Detected from names:** title, album and folder path are matched against keywords
+    (ফেলুদা/Feluda, ব্যোমকেশ, তারানাথ, কাকাবাবু, ঘনাদা, শঙ্কু, ভূত, জমিদার…). Stories imported
+    before genres existed are classified this way once.
+  - **By hand:** ⋯ menu → ধরন.
+- A key explains how রহস্য, থ্রিলার, সাসপেন্স and হরর differ.
 
 **Home**
 - A "Continue listening" carousel.

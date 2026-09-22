@@ -244,7 +244,7 @@ img {
 
 .tabbar {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .tabbar button {
@@ -494,31 +494,6 @@ img {
   gap: 4px;
 }
 
-.verse {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 36ch;
-  margin-top: 4px;
-  text-align: center;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.verse p {
-  margin: 0;
-}
-
-.verse em {
-  font-style: normal;
-  font-family: var(--display);
-  font-size: 1.3em;
-  line-height: 1;
-  color: var(--accent-text);
-  text-shadow: 0 0 14px var(--glow);
-}
-
 .gate-tag {
   font-size: 13px;
   letter-spacing: 0.08em;
@@ -547,7 +522,144 @@ img {
 
 .gate-logo {
   width: min(62vw, 232px);
+  margin: 0 auto;
   filter: drop-shadow(0 10px 40px var(--glow));
+}
+
+/* ---- the rhyme around the logo ---- */
+
+.verse-stage {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.verse-stage em {
+  font-style: normal;
+  font-family: var(--display);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--accent-text);
+  text-shadow: 0 0 14px var(--glow);
+}
+
+/* Narrow: one couplet at a time under the logo; the full set stays for screen readers. */
+.verse-float {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.verse-cycle {
+  margin: 0;
+  min-height: 3.4em;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  animation: verse-in 5s ease-in-out both;
+}
+
+@keyframes verse-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  12%,
+  88% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* Wide: every couplet floats beside its word on the logo (arrows in the brief). */
+@media (min-width: 1040px) {
+  .verse-stage {
+    width: 300px;
+    margin-top: 64px;
+  }
+
+  .verse-stage .gate-logo {
+    width: 300px;
+  }
+
+  .verse-cycle {
+    display: none;
+  }
+
+  .verse-float {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .vf {
+    position: absolute;
+    width: 330px;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--muted);
+    text-shadow: 0 1px 12px var(--bg);
+    animation: vf-float 6s ease-in-out infinite alternate;
+  }
+
+  /* left of the logo */
+  .vf-khun,
+  .vf-andhakar {
+    right: calc(100% + 20px);
+    text-align: right;
+  }
+  .vf-khun {
+    top: calc(12% - 30px);
+    animation-delay: -1.2s;
+  }
+  .vf-andhakar {
+    top: 38%;
+    animation-delay: -3.4s;
+  }
+
+  /* above-right, then right of the logo */
+  .vf-rahasya {
+    top: -66px;
+    left: 58%;
+    animation-delay: -2.1s;
+  }
+  .vf-rakta,
+  .vf-himsheetal {
+    left: calc(100% + 20px);
+  }
+  .vf-rakta {
+    top: calc(20% - 20px);
+    animation-delay: -4.6s;
+  }
+  .vf-himsheetal {
+    top: 44%;
+    animation-delay: -0.4s;
+  }
+}
+
+@keyframes vf-float {
+  from {
+    transform: translateY(-6px);
+  }
+  to {
+    transform: translateY(6px);
+  }
 }
 
 .gate-sub {
@@ -2529,6 +2641,11 @@ img {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .verse-cycle,
+  .vf {
+    animation: none !important;
+  }
+
   *,
   *::before,
   *::after {

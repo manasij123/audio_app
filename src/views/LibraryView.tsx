@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { CloseIcon, SearchIcon, SortIcon } from '../components/Icons';
 import { Sheet } from '../components/Sheet';
@@ -38,6 +38,8 @@ export function LibraryView() {
   }, [tracks]);
   const totalBytes = useMemo(() => tracks.reduce((s, t) => s + t.sizeBytes, 0), [tracks]);
   const queued = useMemo(() => new Set(queue), [queue]);
+  const ids = useMemo(() => visible.map((t) => t.id), [visible]);
+  const playHere = useCallback((id: string) => play(id, { context: ids }), [play, ids]);
 
   return (
     <div className="view library">
@@ -88,7 +90,7 @@ export function LibraryView() {
               isCurrent={currentId === t.id}
               isPlaying={currentId === t.id && playing}
               queued={queued.has(t.id)}
-              onPlay={play}
+              onPlay={playHere}
               onToggleFavorite={lib.toggleFavorite}
               onMore={openMenu}
             />

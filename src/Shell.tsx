@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookmarkIcon, GearIcon, HomeIcon, LibraryIcon } from './components/Icons';
+import { GenrePicker } from './components/GenrePicker';
+import { BookmarkIcon, GearIcon, HomeIcon, LibraryIcon, MasksIcon } from './components/Icons';
+import { ImportGenreSheet } from './components/ImportGenreSheet';
+import { Sheet } from './components/Sheet';
 import { MiniPlayer } from './components/MiniPlayer';
 import { NowPlaying, type PlayerSheet } from './components/NowPlaying';
 import { ChaptersSheet, EffectsSheet, QueueSheet, SleepSheet, SpeedSheet, TrackBookmarksSheet } from './components/PlayerSheets';
@@ -15,12 +18,13 @@ import { loadSettings, lsGet, lsSet, saveSettings, type Settings } from './lib/s
 import { trackStatus, type Profile, type Track } from './lib/types';
 import { ShellContext, type ShellValue } from './shellContext';
 import { BookmarksView } from './views/BookmarksView';
+import { GenresView } from './views/GenresView';
 import { HomeView } from './views/HomeView';
 import { LibraryView } from './views/LibraryView';
 import { SettingsView } from './views/SettingsView';
 
-type Tab = 'home' | 'library' | 'bookmarks' | 'settings';
-type SheetState = { kind: 'track'; id: string } | { kind: 'bookmarks'; id: string } | { kind: PlayerSheet } | null;
+type Tab = 'home' | 'library' | 'genres' | 'bookmarks' | 'settings';
+type SheetState = { kind: 'track'; id: string } | { kind: 'bookmarks'; id: string } | { kind: 'genres'; id: string } | { kind: PlayerSheet } | null;
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
@@ -91,6 +95,8 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
       }),
     [queueKey],
   );
+  const [pendingImport, setPendingImport] = useState<File[] | null>(null);
+  const [playContext, setPlayContext] = useState<string[] | null>(null);
   const folderInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
 
@@ -136,16 +142,20 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
   const currentTrack = currentId ? trackMap.get(currentId) ?? null : null;
 
   // Prev/next move within the visible list; fall back to the full sorted list when the current track is filtered out.
-  const navList = useMemo(() => (currentId && !visible.some((t) => t.id === currentId) ? sorted : visible), [visible, sorted, currentId]);
+  const navList = useMemo(() => {
+    if (playContext && currentId && playContext.includes(currentId)) return playContext.map((id) => trackMap.get(id)).filter((t): t is Track => !!t);
+    return currentId && !visible.some((t) => t.id === currentId) ? sorted : visible;
+  }, [playContext, visible, sorted, currentId, trackMap]);
   const navIndex = currentId ? navList.findIndex((t) => t.id === currentId) : -1;
 
   /* ---------------------------------------------------------- playback */
 
   const lastKey = `shruti.last.${profile.id}`;
   const play = useCallback(
-    (id: string, opts: { at?: number; autoplay?: boolean } = {}) => {
+    (id: string, opts: { at?: number; autoplay?: boolean; context?: string[] } = {}) => {
       const t = lib.tracksRef.current.find((x) => x.id === id);
       if (!t) return;
+      if (opts.context) setPlayContext(opts.context);
       const autoplay = opts.autoplay ?? true;
       if (engine.state.trackId === id && opts.at == null) {
         if (autoplay) engine.toggle();
@@ -239,9 +249,9 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
   /* ------------------------------------------------------------ import */
 
   const importFiles = useCallback(
-    async (files: File[]) => {
+    async (files: File[], genres?: string[]) => {
       if (!files.length) return null;
-      const result = await lib.importFiles(files);
+      const result = await lib.importFiles(files, genres);
       showToast(describeImport(result));
       return result;
     },
@@ -250,7 +260,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
   const onPicked = (input: HTMLInputElement) => {
     const files = input.files ? Array.from(input.files) : [];
     input.value = ''; // allow re-picking the same folder later
-    void importFiles(files);
+    if (files.length) setPendingImport(files); // ask for the genre first
   };
 
   /* ------------------------------------------------------------ queue */
@@ -311,7 +321,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
 
   return (
     <ShellContext.Provider value={value}>
-      <div className={`app${currentTrack ? ' has-player' : ''}${nowOpen || sheet ? ' modal-open' : ''}`}>
+      <div className={`app${currentTrack ? ' has-player' : ''}${nowOpen || sheet || pendingImport ? ' modal-open' : ''}`}>
         <input ref={folderInput} type="file" multiple accept="audio/*" hidden onChange={(e) => onPicked(e.currentTarget)} />
         <input ref={filesInput} type="file" multiple accept="audio/*,.mp3,.m4a,.m4b,.ogg,.opus" hidden onChange={(e) => onPicked(e.currentTarget)} />
 
@@ -324,20 +334,22 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
           </div>
         )}
 
-        <main className="content" inert={nowOpen || sheet != null}>
+        <main className="content" inert={nowOpen || sheet != null || pendingImport != null}>
           {tab === 'home' && <HomeView />}
           {tab === 'library' && <LibraryView />}
+          {tab === 'genres' && <GenresView />}
           {tab === 'bookmarks' && <BookmarksView />}
           {tab === 'settings' && <SettingsView />}
         </main>
 
-        <div className="dock" inert={nowOpen || sheet != null}>
+        <div className="dock" inert={nowOpen || sheet != null || pendingImport != null}>
           {currentTrack && <MiniPlayer track={currentTrack} coverUrl={coverUrl} skipForward={settings.skipForward} onOpen={() => setNowOpen(true)} />}
           <nav className="tabbar" aria-label="Sections">
             {(
               [
                 ['home', 'হোম', HomeIcon],
                 ['library', 'লাইব্রেরি', LibraryIcon],
+                ['genres', 'ধরন', MasksIcon],
                 ['bookmarks', 'বুকমার্ক', BookmarkIcon],
                 ['settings', 'সেটিংস', GearIcon],
               ] as const
@@ -389,6 +401,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             onToggleFavorite={() => lib.toggleFavorite(sheetTrack.id)}
             onSetFinished={(f) => lib.setFinished(sheetTrack.id, f)}
             onBookmarks={() => setTimeout(() => setSheet({ kind: 'bookmarks', id: sheetTrack.id }))}
+            onGenres={() => setTimeout(() => setSheet({ kind: 'genres', id: sheetTrack.id }))}
             onRename={(title) => lib.rename(sheetTrack.id, title)}
             onDelete={() => void deleteTrack(sheetTrack.id)}
           />
@@ -404,6 +417,28 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             onJump={(b) => {
               play(b.trackId, { at: b.time });
               setSheet(null);
+            }}
+          />
+        )}
+        {sheet?.kind === 'genres' && sheetTrack && (
+          <GenreSheet
+            track={sheetTrack}
+            onClose={() => setSheet(null)}
+            onSave={(tags) => {
+              lib.setGenres(sheetTrack.id, tags);
+              setSheet(null);
+              showToast('ধরন সেভ হয়েছে · Genres saved');
+            }}
+          />
+        )}
+        {pendingImport && (
+          <ImportGenreSheet
+            files={pendingImport}
+            onCancel={() => setPendingImport(null)}
+            onImport={(genres) => {
+              const files = pendingImport;
+              setPendingImport(null);
+              void importFiles(files, genres);
             }}
           />
         )}
@@ -446,5 +481,23 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
         )}
       </div>
     </ShellContext.Provider>
+  );
+}
+
+function GenreSheet({ track, onClose, onSave }: { track: Track; onClose(): void; onSave(tags: string[]): void }) {
+  const [tags, setTags] = useState<string[]>(track.genres ?? []);
+  return (
+    <Sheet title={`ধরন · ${track.title}`} onClose={onClose}>
+      <p className="setting-text">এক বা একাধিক ধরন বেছে নিন। শুধু মূল ধরন ছুঁলে উপ-ধরন ছাড়াই সেই ধরনে থাকবে।</p>
+      <GenrePicker value={tags} onChange={setTags} />
+      <div className="sheet-actions">
+        <button type="button" className="btn ghost" onClick={onClose}>
+          বাতিল
+        </button>
+        <button type="button" className="btn primary" onClick={() => onSave(tags)}>
+          সেভ করুন
+        </button>
+      </div>
+    </Sheet>
   );
 }

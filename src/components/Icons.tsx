@@ -128,3 +128,35 @@ export const GoogleIcon = (p: P) => (
     <path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" />
   </svg>
 );
+
+/* Genre marks */
+export const MagnifierIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <circle {...line} cx="10" cy="10" r="6" />
+    <path {...line} d="M14.5 14.5 20 20M7.5 10a2.5 2.5 0 0 1 2.5-2.5" />
+  </svg>
+);
+export const KnifeIcon = (p: P) => <Line {...p} d="M20 4 8.5 15.5l-2-2L18 2zM8.5 15.5 5 19a1.4 1.4 0 0 1-2-2l3.5-3.5M11 13l2 2" />;
+export const GhostIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <path {...line} d="M5 20V10a7 7 0 0 1 14 0v10l-2.3-1.6L14.3 20 12 18.4 9.7 20l-2.4-1.6z" />
+    <circle cx="9.5" cy="10.5" r="1.2" fill="currentColor" />
+    <circle cx="14.5" cy="10.5" r="1.2" fill="currentColor" />
+  </svg>
+);
+export const CompassIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <circle {...line} cx="12" cy="12" r="8.5" />
+    <path {...line} d="m15.5 8.5-2 5-5 2 2-5z" />
+  </svg>
+);
+export const AtomIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    <ellipse {...line} cx="12" cy="12" rx="9" ry="3.6" />
+    <ellipse {...line} cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)" />
+    <ellipse {...line} cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-60 12 12)" />
+  </svg>
+);
+export const MasksIcon = (p: P) => <Line {...p} d="M4 4h9v6a4.5 4.5 0 0 1-9 0zM11 11.5h9v5a4.5 4.5 0 0 1-9 0zM6.5 7.5h1M9.5 7.5h1M13.5 14.5h1M16.5 14.5h1M7 11.5c.9.6 2.1.6 3 0M14 18.5c.9-.6 2.1-.6 3 0" />;
+export const ChevronLeftIcon = (p: P) => <Line {...p} d="M15 6l-6 6 6 6" />;

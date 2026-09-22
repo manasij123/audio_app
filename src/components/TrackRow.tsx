@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { formatDuration, formatTime } from '../lib/format';
+import { tagLabel } from '../lib/genres';
 import { trackStatus, type Track } from '../lib/types';
 import { Cover } from './Cover';
 import { MoreIcon, StarIcon } from './Icons';
@@ -48,6 +49,7 @@ export const TrackRow = memo(function TrackRow({ track, coverUrl, isCurrent, isP
             {track.trackNo != null && <span className="row-no">#{track.trackNo}</span>}
             <span>{formatTime(duration)}</span>
             <StatusLabel track={track} />
+            {track.genres?.[0] && <span className="row-genre">{tagLabel(track.genres[0])}</span>}
             {queued && <span className="pill queued">পরের তালিকায়</span>}
           </span>
           {pct > 0 && (

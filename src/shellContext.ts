@@ -21,9 +21,10 @@ export interface ShellValue {
   queue: string[];
   currentId: string | null;
   playing: boolean;
-  play(id: string, opts?: { at?: number }): void;
+  /** `context`: the list being played from, so previous/next follow it. */
+  play(id: string, opts?: { at?: number; context?: string[] }): void;
   openMenu(id: string): void;
-  importFiles(files: File[]): Promise<ImportResult | null>;
+  importFiles(files: File[], genres?: string[]): Promise<ImportResult | null>;
   pickFolder(): void;
   pickFiles(): void;
   toast(message: string): void;
