@@ -1,81 +1,82 @@
-/* Shruti — "radio at night": ink-blue night ground, amber tuning-dial glow. */
+/* Shruti — thriller night: warm black, blood red, bone white (from the Shruti logo). */
 
 :root {
-  --bg: #f2f1f7;
+  --bg: #f7f3f3;
   --surface: #ffffff;
-  --surface-2: #eae9f3;
-  --surface-3: #dfdeeb;
-  --line: #dad8e7;
-  --text: #17162b;
-  --muted: #5b5975;
-  --faint: #8a88a2;
-  --accent: #b35a00;
+  --surface-2: #f1e9e9;
+  --surface-3: #e6d9da;
+  --line: #e6d7d8;
+  --text: #1b0e10;
+  --muted: #6c5557;
+  --faint: #9b8586;
+  --accent: #c4141e;
   --accent-ink: #ffffff;
-  --accent-soft: #fbe7d0;
-  --accent-text: #9a4d00;
+  --accent-soft: #fbe2e3;
+  --accent-text: #ad111a;
   --good: #1b7a4d;
   --good-soft: #dff3e8;
-  --danger: #b3261e;
+  --danger: #c2410c;
   --on-danger: #ffffff;
   --star: #c98700;
-  --glow: rgb(179 90 0 / 0.18);
-  --scrim: rgb(20 18 40 / 0.45);
-  --shadow-lg: 0 18px 50px rgb(30 25 70 / 0.18);
-  --shadow-dock: 0 -8px 30px rgb(30 25 70 / 0.1);
+  --glow: rgb(196 20 30 / 0.2);
+  --scrim: rgb(27 14 16 / 0.5);
+  --shadow-lg: 0 18px 50px rgb(60 10 15 / 0.2);
+  --shadow-dock: 0 -8px 30px rgb(60 10 15 / 0.1);
   --radius: 16px;
   --font: 'Anek Bangla Variable', 'Noto Sans Bengali', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Galada', 'Anek Bangla Variable', 'Noto Serif Bengali', serif;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0d0e1a;
-    --surface: #161729;
-    --surface-2: #1e2035;
-    --surface-3: #282a44;
-    --line: #2a2c46;
-    --text: #efedf7;
-    --muted: #a3a1bb;
-    --faint: #6e6c88;
-    --accent: #ffb04a;
-    --accent-ink: #231300;
-    --accent-soft: #33260f;
-    --accent-text: #ffc271;
+    --bg: #0b0708;
+    --surface: #150e0f;
+    --surface-2: #1f1516;
+    --surface-3: #2c1d1f;
+    --line: #2e2022;
+    --text: #f6efef;
+    --muted: #b39d9e;
+    --faint: #7c6769;
+    --accent: #e3232d;
+    --accent-ink: #ffffff;
+    --accent-soft: #3b1215;
+    --accent-text: #ff6068;
     --good: #5fd49a;
-    --good-soft: #13301f;
-    --danger: #ff6b60;
-    --on-danger: #210403;
+    --good-soft: #12291c;
+    --danger: #ff8a5c;
+    --on-danger: #1e0800;
     --star: #ffc53d;
-    --glow: rgb(255 176 74 / 0.22);
-    --scrim: rgb(0 0 0 / 0.6);
-    --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.55);
-    --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.45);
+    --glow: rgb(227 35 45 / 0.32);
+    --scrim: rgb(0 0 0 / 0.65);
+    --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.6);
+    --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #0d0e1a;
-  --surface: #161729;
-  --surface-2: #1e2035;
-  --surface-3: #282a44;
-  --line: #2a2c46;
-  --text: #efedf7;
-  --muted: #a3a1bb;
-  --faint: #6e6c88;
-  --accent: #ffb04a;
-  --accent-ink: #231300;
-  --accent-soft: #33260f;
-  --accent-text: #ffc271;
+  --bg: #0b0708;
+  --surface: #150e0f;
+  --surface-2: #1f1516;
+  --surface-3: #2c1d1f;
+  --line: #2e2022;
+  --text: #f6efef;
+  --muted: #b39d9e;
+  --faint: #7c6769;
+  --accent: #e3232d;
+  --accent-ink: #ffffff;
+  --accent-soft: #3b1215;
+  --accent-text: #ff6068;
   --good: #5fd49a;
-  --good-soft: #13301f;
-  --danger: #ff6b60;
-  --on-danger: #210403;
+  --good-soft: #12291c;
+  --danger: #ff8a5c;
+  --on-danger: #1e0800;
   --star: #ffc53d;
-  --glow: rgb(255 176 74 / 0.22);
-  --scrim: rgb(0 0 0 / 0.6);
-  --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.55);
-  --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.45);
+  --glow: rgb(227 35 45 / 0.32);
+  --scrim: rgb(0 0 0 / 0.65);
+  --shadow-lg: 0 18px 50px rgb(0 0 0 / 0.6);
+  --shadow-dock: 0 -8px 30px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }
 
@@ -152,9 +153,25 @@ img {
 }
 
 .view-head h1 {
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--display);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.logo {
+  display: block;
+  object-fit: contain;
+  max-width: 100%;
+  height: auto;
+  filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.25));
 }
 
 .view-head.row-head {
@@ -412,7 +429,7 @@ img {
   color: #fff;
   background:
     repeating-radial-gradient(circle at 100% 100%, rgb(255 255 255 / 0.07) 0 1.5px, transparent 1.5px 14%),
-    linear-gradient(145deg, hsl(var(--h) 52% 44%), hsl(calc(var(--h) + 38) 58% 24%));
+    linear-gradient(150deg, hsl(var(--h) 42% 34%), hsl(calc(var(--h) + 30) 45% 12%) 70%, #0b0708);
 }
 
 .cover-letter {
@@ -477,28 +494,6 @@ img {
   gap: 4px;
 }
 
-.brand-mark {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  box-shadow: 0 0 34px var(--glow);
-}
-
-.brand-mark svg {
-  width: 30px;
-  height: 30px;
-}
-
-.gate-name {
-  font-size: 34px;
-  font-weight: 700;
-  margin-top: 6px;
-}
-
 .gate-tag {
   font-size: 13px;
   letter-spacing: 0.08em;
@@ -520,7 +515,14 @@ img {
 }
 
 .gate-card h1 {
-  font-size: 26px;
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.gate-logo {
+  width: min(62vw, 232px);
+  filter: drop-shadow(0 10px 40px var(--glow));
 }
 
 .gate-sub {
@@ -886,7 +888,9 @@ img {
 }
 
 .welcome h2 {
-  font-size: 22px;
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 400;
 }
 
 .welcome p {
@@ -900,38 +904,34 @@ img {
   font-size: 13px;
 }
 
-/* The tuning dial: tick marks with a glowing amber needle. */
-.welcome-dial {
-  position: relative;
-  width: min(100%, 300px);
-  height: 58px;
-  border-radius: 12px;
-  background:
-    repeating-linear-gradient(90deg, var(--faint) 0 1px, transparent 1px 10px) bottom 10px left 8px / calc(100% - 16px) 10px no-repeat,
-    repeating-linear-gradient(90deg, var(--muted) 0 2px, transparent 2px 50px) bottom 10px left 8px / calc(100% - 16px) 18px no-repeat,
-    var(--surface-2);
-  border: 1px solid var(--line);
-  overflow: hidden;
+/* Audio waveform, echoing the bars under the logo's wordmark. */
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
 }
 
-.welcome-dial span {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: 38%;
-  width: 3px;
+.waveform i {
+  width: 4px;
+  height: 30%;
   border-radius: 2px;
   background: var(--accent);
-  box-shadow: 0 0 14px 3px var(--glow);
-  animation: tune 5s ease-in-out infinite alternate;
+  box-shadow: 0 0 10px var(--glow);
+  animation: wave 0.9s ease-in-out infinite alternate;
 }
 
-@keyframes tune {
-  from {
-    left: 18%;
-  }
+.waveform i:nth-child(odd) {
+  height: 60%;
+}
+
+.waveform i:nth-child(3n) {
+  height: 90%;
+}
+
+@keyframes wave {
   to {
-    left: 74%;
+    transform: scaleY(0.35);
   }
 }
 

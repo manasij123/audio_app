@@ -47,6 +47,8 @@ entirely in the browser. Your audio files never leave the device.
 - Lock-screen and notification controls use the Media Session API. On desktop, Space plays or
   pauses and ←/→ skip.
 
+**Branding:** the Shruti logo (`public/logo.webp`) appears on the login screen and home screen and is used for the app icons; the palette (warm black, blood red, bone white) and the Galada display face follow the logo.
+
 **Home**
 - A "Continue listening" carousel.
 - Listening stats: today, this week (7-day chart), daily streak, finished episodes and all-time

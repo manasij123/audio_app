@@ -4,7 +4,8 @@ import type { LibraryStore } from '../lib/db';
 import { hashPin, pinSupported, verifyPin } from '../lib/pin';
 import type { GoogleLink, Profile } from '../lib/types';
 import { Avatar } from './Avatar';
-import { GoogleIcon, LockIcon, PlusIcon, RadioIcon } from './Icons';
+import { GoogleIcon, LockIcon, PlusIcon } from './Icons';
+import { Logo } from './Logo';
 import { PinPad } from './PinPad';
 
 const SESSION_KEY = 'shruti.session';
@@ -36,7 +37,9 @@ function sessionSet(id: string | null) {
   }
 }
 
-const randomHue = () => Math.floor(Math.random() * 360);
+/** Avatar hues that sit well with the red/black brand (reds, crimsons, purples, blues). */
+const AVATAR_HUES = [352, 8, 18, 330, 300, 270, 235, 210];
+const randomHue = () => AVATAR_HUES[Math.floor(Math.random() * AVATAR_HUES.length)];
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 
 type View = { kind: 'pick' } | { kind: 'pin'; profile: Profile } | { kind: 'create'; google?: GoogleLink };
@@ -135,11 +138,8 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
   return (
     <div className="gate">
       <div className="gate-brand">
-        <span className="brand-mark" aria-hidden>
-          <RadioIcon />
-        </span>
-        <span className="gate-name">শ্রুতি</span>
-        <span className="gate-tag">যা শোনা যায় · Shruti</span>
+        <Logo size={232} className="gate-logo" />
+        <span className="gate-tag">গল্প শুনুন, অন্ধকারে · Shruti</span>
       </div>
 
       {view.kind === 'pick' && (

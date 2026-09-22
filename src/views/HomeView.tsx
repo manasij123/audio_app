@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Cover } from '../components/Cover';
 import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { PlayIcon } from '../components/Icons';
+import { Logo } from '../components/Logo';
 import { StatusLabel } from '../components/TrackRow';
 import { dayKey } from '../hooks/useLibrary';
 import { formatDuration, formatTime } from '../lib/format';
@@ -61,13 +62,18 @@ export function HomeView() {
   if (lib.loaded && tracks.length === 0) {
     return (
       <div className="view home">
-        <header className="view-head">
-          <p className="eyebrow">{greeting(new Date().getHours())},</p>
-          <h1>{profile.name}</h1>
+        <header className="view-head home-head">
+          <div>
+            <p className="eyebrow">{greeting(new Date().getHours())},</p>
+            <h1>{profile.name}</h1>
+          </div>
         </header>
         <section className="welcome">
-          <div className="welcome-dial" aria-hidden>
-            <span />
+          <Logo size={180} />
+          <div className="waveform" aria-hidden>
+            {Array.from({ length: 21 }, (_, i) => (
+              <i key={i} style={{ animationDelay: `${-((i * 137) % 900)}ms` }} />
+            ))}
           </div>
           <h2>আপনার লাইব্রেরি এখনও খালি</h2>
           <p>
@@ -84,9 +90,12 @@ export function HomeView() {
 
   return (
     <div className="view home">
-      <header className="view-head">
-        <p className="eyebrow">{greeting(new Date().getHours())},</p>
-        <h1>{profile.name}</h1>
+      <header className="view-head home-head">
+        <div>
+          <p className="eyebrow">{greeting(new Date().getHours())},</p>
+          <h1>{profile.name}</h1>
+        </div>
+        <Logo size={64} />
       </header>
       <ImportProgressBar />
 
