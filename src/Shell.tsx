@@ -8,6 +8,7 @@ import { NowPlaying, type PlayerSheet } from './components/NowPlaying';
 import { ChaptersSheet, EffectsSheet, QueueSheet, SleepSheet, SpeedSheet, TrackBookmarksSheet } from './components/PlayerSheets';
 import type { ProfileApi } from './components/ProfileGate';
 import { TrackMenu } from './components/TrackMenu';
+import { Watermark } from './components/Watermark';
 import { useCloudSync } from './hooks/useCloudSync';
 import { useDurationProbe } from './hooks/useDurationProbe';
 import { useLibrary, type ImportResult } from './hooks/useLibrary';
@@ -348,6 +349,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
           </div>
         )}
 
+        <Watermark />
         <main className="content" inert={nowOpen || sheet != null || pendingImport != null}>
           {tab === 'home' && <HomeView />}
           {tab === 'library' && <LibraryView />}
