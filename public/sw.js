@@ -1,6 +1,6 @@
 // Shruti service worker: caches the app shell so the app opens offline.
 // Audio never goes through here — it is played from IndexedDB blobs via blob: URLs.
-const CACHE = 'shruti-shell-v3';
+const CACHE = 'shruti-shell-v4';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -12,7 +12,7 @@ self.addEventListener('install', (event) => {
       await cache.put('./', res);
       // Pre-cache the hashed bundles referenced by index.html.
       const assets = [...html.matchAll(/(?:src|href)="(\.?\/?(?:assets\/[^"]+|[\w-]+\.png|manifest\.webmanifest))"/g)].map((m) => m[1]);
-      await cache.addAll([...new Set([...assets, './logo.webp', './icon-192.png', './icon-512.png'])]);
+      await cache.addAll([...new Set([...assets, './logo.webp', './login-art.webp', './icon-192.png', './icon-512.png'])]);
       // Fonts are referenced from the stylesheet, not index.html.
       for (const css of assets.filter((a) => a.endsWith('.css'))) {
         const cssUrl = new URL(css, self.registration.scope);

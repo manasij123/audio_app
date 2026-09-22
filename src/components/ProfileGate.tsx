@@ -5,7 +5,7 @@ import { hashPin, pinSupported, verifyPin } from '../lib/pin';
 import type { GoogleLink, Profile } from '../lib/types';
 import { Avatar } from './Avatar';
 import { GoogleIcon, LockIcon, PlusIcon } from './Icons';
-import { LogoWithVerse } from './Verse';
+import { LoginArt } from './Verse';
 import { PinPad } from './PinPad';
 
 const SESSION_KEY = 'shruti.session';
@@ -138,7 +138,7 @@ export function ProfileGate({ store, children }: { store: LibraryStore; children
   return (
     <div className="gate">
       <div className="gate-brand">
-        <LogoWithVerse />
+        <LoginArt />
       </div>
 
       {view.kind === 'pick' && (
