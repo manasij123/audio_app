@@ -10,8 +10,10 @@ export interface Settings {
   autoRewind: boolean;
   autoPlayNext: boolean;
   speed: number;
-  /** Volume gain, 1 = off. */
-  boost: number;
+  /** Output volume, 0–3 (300%). 1 = unchanged. */
+  volume: number;
+  /** Graphic-EQ gains in dB, one per band in EQ_BANDS. */
+  eq: number[];
   skipSilence: boolean;
   voiceClarity: boolean;
   shakeToExtend: boolean;
@@ -28,7 +30,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRewind: true,
   autoPlayNext: true,
   speed: 1,
-  boost: 1,
+  volume: 1,
+  eq: [0, 0, 0, 0, 0, 0],
   skipSilence: false,
   voiceClarity: false,
   shakeToExtend: true,
@@ -42,7 +45,12 @@ const key = (profileId: string) => `shruti.settings.${profileId}`;
 export function loadSettings(profileId: string): Settings {
   try {
     const raw = localStorage.getItem(key(profileId));
-    return raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULT_SETTINGS };
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const parsed = JSON.parse(raw) as Partial<Settings> & { boost?: number };
+    // Older versions had a stepped "boost" instead of a volume knob.
+    if (parsed.volume == null && typeof parsed.boost === 'number') parsed.volume = parsed.boost;
+    delete parsed.boost;
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

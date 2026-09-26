@@ -97,27 +97,30 @@ export function SleepSheet({ settings, onClose, onSettings }: { settings: Settin
   );
 }
 
-const BOOSTS = [
-  { value: 1, label: 'বন্ধ' },
-  { value: 1.5, label: '1.5×' },
-  { value: 2, label: '2×' },
-  { value: 3, label: '3×' },
-];
-
 export function EffectsControls({ settings, savedSeconds, onSettings }: { settings: Settings; savedSeconds: number; onSettings(p: Partial<Settings>): void }) {
   return (
     <>
       <div className="setting-block">
         <div className="setting-label">
-          ভলিউম বুস্ট
-          <small>Volume boost for quiet recordings (with a limiter to avoid distortion)</small>
+          ভলিউম · {Math.round(settings.volume * 100)}%
+          <small>Up to 300% for quiet recordings, with a limiter so loud parts don’t distort</small>
         </div>
-        <div className="segmented" role="radiogroup" aria-label="Volume boost">
-          {BOOSTS.map((b) => (
-            <button key={b.value} type="button" role="radio" aria-checked={settings.boost === b.value} className={settings.boost === b.value ? 'on' : ''} onClick={() => onSettings({ boost: b.value })}>
-              {b.label}
-            </button>
-          ))}
+        <input
+          id="volume-range"
+          type="range"
+          className="slider"
+          min={0}
+          max={300}
+          step={5}
+          value={Math.round(settings.volume * 100)}
+          onChange={(e) => onSettings({ volume: Number(e.target.value) / 100 })}
+          aria-label="Volume percent"
+        />
+        <div className="scale-labels" aria-hidden>
+          <span>0%</span>
+          <span>100%</span>
+          <span>200%</span>
+          <span>300%</span>
         </div>
       </div>
       <label className="switch-row">

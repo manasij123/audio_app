@@ -17,8 +17,16 @@ export default function App() {
   if (!opened) return <div className="gate" aria-busy="true" />;
 
   return (
-    <ProfileGate store={opened.store}>
-      {(profile, api) => <Shell key={profile.id} store={opened.store} profile={profile} profiles={api} storageError={opened.error} />}
-    </ProfileGate>
+    <>
+      {/* Slow-drifting glows behind everything; the frosted-glass surfaces blur them. */}
+      <div className="ambient" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
+      <ProfileGate store={opened.store}>
+        {(profile, api) => <Shell key={profile.id} store={opened.store} profile={profile} profiles={api} storageError={opened.error} />}
+      </ProfileGate>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { Sheet } from './components/Sheet';
 import { MiniPlayer } from './components/MiniPlayer';
 import { NowPlaying, type PlayerSheet } from './components/NowPlaying';
 import { ChaptersSheet, EffectsSheet, QueueSheet, SleepSheet, SpeedSheet, TrackBookmarksSheet } from './components/PlayerSheets';
+import { EqualizerSheet } from './components/skeuo/EqualizerSheet';
 import type { ProfileApi } from './components/ProfileGate';
 import { TrackMenu } from './components/TrackMenu';
 import { Watermark } from './components/Watermark';
@@ -215,8 +216,8 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     engine.skipForward = settings.skipForward;
     engine.autoRewind = settings.autoRewind;
     engine.shakeToExtend = settings.shakeToExtend;
-    engine.setEffects({ boost: settings.boost, skipSilence: settings.skipSilence, voiceClarity: settings.voiceClarity });
-  }, [engine, settings.skipBack, settings.skipForward, settings.autoRewind, settings.shakeToExtend, settings.boost, settings.skipSilence, settings.voiceClarity]);
+    engine.setEffects({ volume: settings.volume, eq: settings.eq, skipSilence: settings.skipSilence, voiceClarity: settings.voiceClarity });
+  }, [engine, settings.skipBack, settings.skipForward, settings.autoRewind, settings.shakeToExtend, settings.volume, settings.eq, settings.skipSilence, settings.voiceClarity]);
 
   // Restore speed and the last episode (paused) when the profile opens; stop playback when it closes.
   useEffect(() => {
@@ -387,7 +388,10 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             queueLength={queue.length}
             skipBack={settings.skipBack}
             skipForward={settings.skipForward}
-            effectsOn={settings.boost > 1 || settings.skipSilence || settings.voiceClarity}
+            effectsOn={settings.skipSilence || settings.voiceClarity}
+            eqOn={settings.eq.some((g) => g !== 0)}
+            volume={settings.volume}
+            onVolume={(percent) => updateSettings({ volume: percent / 100 })}
             hasPrev={navIndex > 0}
             hasNext={queue.length > 0 || (navIndex >= 0 && navIndex < navList.length - 1)}
             onClose={() => setNowOpen(false)}
@@ -467,6 +471,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             }}
           />
         )}
+        {sheet?.kind === 'eq' && <EqualizerSheet gains={settings.eq} onChange={(eq) => updateSettings({ eq })} onClose={() => setSheet(null)} />}
         {sheet?.kind === 'sleep' && <SleepSheet settings={settings} onClose={() => setSheet(null)} onSettings={updateSettings} />}
         {sheet?.kind === 'effects' && <EffectsSheet settings={settings} savedSeconds={savedSeconds} onClose={() => setSheet(null)} onSettings={updateSettings} />}
         {sheet?.kind === 'chapters' && currentTrack && <ChaptersSheet chapters={currentTrack.chapters} onClose={() => setSheet(null)} />}

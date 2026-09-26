@@ -20,7 +20,9 @@ export function MiniPlayer({ track, coverUrl, skipForward, onOpen }: { track: Tr
         <i style={{ width: `${pct}%` }} />
       </span>
       <button type="button" className="mini-open" onClick={onOpen} aria-label={`Open player: ${track.title}`}>
-        <Cover url={coverUrl} title={track.title} size="xs" />
+        <span className={`mini-disc${playing ? ' spinning' : ''}`}>
+          <Cover url={coverUrl} title={track.title} size="xs" />
+        </span>
         <span className="mini-text">
           <span className="mini-title">{track.title}</span>
           <span className="mini-sub">
@@ -29,10 +31,10 @@ export function MiniPlayer({ track, coverUrl, skipForward, onOpen }: { track: Tr
           </span>
         </span>
       </button>
-      <button type="button" className="ctrl sm" onClick={() => engine.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
+      <button type="button" className={`hw-key round play-sm${playing ? ' down' : ''}`} onClick={() => engine.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
         {playing ? <PauseIcon /> : <PlayIcon />}
       </button>
-      <button type="button" className="ctrl sm" onClick={() => engine.skip(skipForward)} aria-label={`Forward ${skipForward} seconds`}>
+      <button type="button" className="hw-key round" onClick={() => engine.skip(skipForward)} aria-label={`Forward ${skipForward} seconds`}>
         <SkipIcon dir="forward" seconds={skipForward} />
       </button>
     </div>

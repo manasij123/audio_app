@@ -22,9 +22,19 @@ entirely in the browser. Your audio files never leave the device.
 - Tracks without cover art get a generated tile: a colour derived from the title and its
   first Bengali letter.
 
+**Look: glass frame, hardware player**
+- The main frame is **glassmorphic**: cards, lists, tabs, search and sheets are frosted glass
+  over slowly drifting blood-red glows (`src/glass.css`).
+- Everything that plays audio is **skeuomorphic** (`src/skeuo.css`): the full-screen player is
+  a graphite deck with a spinning record (the cover art is its label; a tonearm swings on
+  while playing), a glowing red display, metal transport keys (the red play key latches
+  down while playing), a rotary **volume knob up to 300%**, and a **6-band graphic
+  equaliser** with faders and presets (সমান, কণ্ঠ, বেস, পুরনো রেডিও, রাতের শোনা, ভৌতিক).
+  The mini-player uses the same keys and a small spinning disc.
+
 **Player**
-- A mini-player sits above the tab bar. Tapping it opens a full-screen player tinted with the
-  cover's colour.
+- A mini-player sits above the tab bar. Tapping it opens the full-screen player, tinted with
+  the cover's colour.
 - Seek bar with chapter and bookmark marks, and elapsed / remaining time (adjusted for speed).
 - Speed from 0.5× to 3× in 0.05× steps, plus presets.
 - Skip back and forward, configurable (back 5–30 s, forward 10–60 s).
@@ -36,7 +46,8 @@ entirely in the browser. Your audio files never leave the device.
 - **Queue ("Up next")** with reordering. When the queue is empty, playback continues in library
   order.
 - **Sound:**
-  - volume boost (1.5×/2×/3×, with a limiter so it doesn't distort)
+  - volume 0–300% (knob in the player, slider in Settings), with a limiter so it doesn't distort
+  - 6-band graphic EQ (60 Hz – 10 kHz, ±12 dB) with presets, saved per profile
   - skip silence (speeds through quiet gaps and counts the time saved)
   - voice clarity (reduces rumble and lifts speech frequencies)
 - **Resume:**

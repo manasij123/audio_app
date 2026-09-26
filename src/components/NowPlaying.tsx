@@ -4,11 +4,12 @@ import { getEngine, useEngine } from '../lib/engine';
 import { formatDuration, formatRate, formatTime } from '../lib/format';
 import { tagLabel } from '../lib/genres';
 import type { Bookmark, Track } from '../lib/types';
-import { Cover } from './Cover';
 import { BookmarkIcon, ChaptersIcon, ChevronDownIcon, GaugeIcon, MoonIcon, MoreIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, QueueIcon, SkipIcon, SlidersIcon, StarIcon } from './Icons';
 import { SeekBar } from './SeekBar';
+import { Turntable } from './skeuo/Turntable';
+import { VolumeKnob } from './skeuo/VolumeKnob';
 
-export type PlayerSheet = 'speed' | 'sleep' | 'effects' | 'queue' | 'chapters' | 'bookmarks';
+export type PlayerSheet = 'speed' | 'sleep' | 'effects' | 'queue' | 'chapters' | 'bookmarks' | 'eq';
 
 interface Props {
   inert?: boolean;
@@ -19,6 +20,8 @@ interface Props {
   skipBack: number;
   skipForward: number;
   effectsOn: boolean;
+  eqOn: boolean;
+  volume: number;
   hasPrev: boolean;
   hasNext: boolean;
   onClose(): void;
@@ -28,9 +31,14 @@ interface Props {
   onMore(): void;
   onToggleFavorite(): void;
   onQuickBookmark(): void;
+  onVolume(percent: number): void;
 }
 
-/** Full-screen player, tinted with the cover's colour. */
+/**
+ * Full-screen player, built like a piece of audio hardware (skeuomorphic):
+ * a spinning record, a glowing display, metal transport keys, a volume knob
+ * and a graphic equaliser. Tinted with the cover's colour.
+ */
 export function NowPlaying(p: Props) {
   const { track } = p;
   const engine = getEngine();
@@ -50,7 +58,6 @@ export function NowPlaying(p: Props) {
     };
   }, [p.coverUrl]);
 
-  // Close on Escape / Android back gesture via history is out of scope; Escape for desktop.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !p.inert && p.onClose();
     window.addEventListener('keydown', onKey);
@@ -61,107 +68,116 @@ export function NowPlaying(p: Props) {
   const chapterIndex = chapters.length ? chapters.findLastIndex((c) => c.start <= time + 0.5) : -1;
   const chapter = chapterIndex >= 0 ? chapters[chapterIndex] : null;
   const style = (rgb ? { '--np-rgb': rgb } : { '--np-hue': hashHue(track.title) }) as unknown as CSSProperties;
+  const sub = [track.trackNo != null ? `পর্ব ${track.trackNo}` : null, ...(track.genres ?? []).slice(0, 2).map(tagLabel)].filter(Boolean).join(' · ');
 
   return (
-    <div className={`np${rgb ? ' tinted' : ''}`} style={style} inert={p.inert} role="dialog" aria-modal="true" aria-label={`Now playing: ${track.title}`}>
+    <div className={`np skeuo${rgb ? ' tinted' : ''}`} style={style} inert={p.inert} role="dialog" aria-modal="true" aria-label={`Now playing: ${track.title}`}>
       <header className="np-head">
-        <button type="button" className="icon-btn" onClick={p.onClose} aria-label="Close player">
+        <button type="button" className="hw-key round" onClick={p.onClose} aria-label="Close player">
           <ChevronDownIcon />
         </button>
         <div className="np-context">
           <span>এখন শুনছেন</span>
           {track.album && <strong>{track.album}</strong>}
         </div>
-        <button type="button" className="icon-btn" onClick={p.onMore} aria-label="More actions">
+        <button type="button" className="hw-key round" onClick={p.onMore} aria-label="More actions">
           <MoreIcon />
         </button>
       </header>
 
-      <div className="np-art">
-        <Cover url={p.coverUrl} title={track.title} size="xl" />
-      </div>
+      <div className="deck">
+        <Turntable coverUrl={p.coverUrl} title={track.title} playing={playing} />
 
-      <div className="np-titles">
-        <div>
-          <h2 className="np-title">{track.title}</h2>
-          <p className="np-sub">
-            {[track.trackNo != null ? `পর্ব ${track.trackNo}` : null, track.artist].filter(Boolean).join(' · ') || 'শ্রুতি'}
-          </p>
-          {!!track.genres?.length && (
-            <p className="np-genres">
-              {track.genres.map((g) => (
-                <span key={g}>{tagLabel(g)}</span>
-              ))}
-            </p>
-          )}
+        <div className="vfd">
+          <div className="vfd-row">
+            <span className={`vfd-led${playing ? ' on' : ''}`} aria-hidden />
+            <div className="vfd-title" title={track.title}>
+              <span className={track.title.length > 26 ? 'marquee' : ''}>{track.title}</span>
+            </div>
+            <button type="button" className={`vfd-star${track.favorite ? ' on' : ''}`} onClick={p.onToggleFavorite} aria-pressed={track.favorite} aria-label="Favourite">
+              <StarIcon filled={track.favorite} />
+            </button>
+          </div>
+          <div className="vfd-sub">
+            {chapter ? (
+              <button type="button" className="vfd-chapter" onClick={() => p.onSheet('chapters')}>
+                ▸ {chapter.title} ({chapterIndex + 1}/{chapters.length})
+              </button>
+            ) : (
+              sub || 'শ্রুতি'
+            )}
+            <span className="vfd-flags">
+              {rate !== 1 && <span>{formatRate(rate)}</span>}
+              {(sleepRemaining != null || sleepTrack) && <span>☾ {sleepTrack ? 'পর্ব শেষে' : formatDuration(sleepRemaining!)}</span>}
+              {p.eqOn && <span>EQ</span>}
+            </span>
+          </div>
         </div>
-        <button type="button" className={`icon-btn star${track.favorite ? ' on' : ''}`} onClick={p.onToggleFavorite} aria-pressed={track.favorite} aria-label="Favourite">
-          <StarIcon filled={track.favorite} />
-        </button>
-      </div>
 
-      {chapter && (
-        <button type="button" className="np-chapter" onClick={() => p.onSheet('chapters')}>
-          <ChaptersIcon /> {chapter.title} <span>
-            {chapterIndex + 1}/{chapters.length}
-          </span>
-        </button>
-      )}
+        <SeekBar chapterMarks={chapters.map((c) => c.start).filter((s) => s > 0)} bookmarkMarks={p.bookmarks.map((b) => b.time)} />
 
-      <SeekBar chapterMarks={chapters.map((c) => c.start).filter((s) => s > 0)} bookmarkMarks={p.bookmarks.map((b) => b.time)} />
-
-      <div className="np-controls">
-        <button type="button" className="ctrl" onClick={p.onPrev} disabled={!p.hasPrev} aria-label="Previous episode">
-          <PrevIcon />
-        </button>
-        <button type="button" className="ctrl" onClick={() => engine.skip(-p.skipBack)} aria-label={`Back ${p.skipBack} seconds`}>
-          <SkipIcon dir="back" seconds={p.skipBack} />
-        </button>
-        <button type="button" className="ctrl play" onClick={() => engine.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
-        <button type="button" className="ctrl" onClick={() => engine.skip(p.skipForward)} aria-label={`Forward ${p.skipForward} seconds`}>
-          <SkipIcon dir="forward" seconds={p.skipForward} />
-        </button>
-        <button type="button" className="ctrl" onClick={p.onNext} disabled={!p.hasNext} aria-label="Next episode">
-          <NextIcon />
-        </button>
-      </div>
-
-      <nav className="np-actions" aria-label="Player options">
-        <button type="button" onClick={() => p.onSheet('speed')} className={rate !== 1 ? 'active' : ''}>
-          <GaugeIcon />
-          <span>{formatRate(rate)}</span>
-        </button>
-        <button type="button" onClick={() => p.onSheet('sleep')} className={sleepRemaining != null || sleepTrack ? 'active' : ''}>
-          <MoonIcon />
-          <span>{sleepTrack ? 'পর্ব শেষে' : sleepRemaining != null ? formatTime(sleepRemaining) : 'ঘুম'}</span>
-        </button>
-        <button type="button" onClick={p.onQuickBookmark} onContextMenu={(e) => (e.preventDefault(), p.onSheet('bookmarks'))}>
-          <BookmarkIcon />
-          <span>চিহ্ন দিন</span>
-        </button>
-        {chapters.length > 0 ? (
-          <button type="button" onClick={() => p.onSheet('chapters')}>
-            <ChaptersIcon />
-            <span>অধ্যায়</span>
+        <div className="transport" role="group" aria-label="Transport">
+          <button type="button" className="hw-key" onClick={p.onPrev} disabled={!p.hasPrev} aria-label="Previous episode">
+            <PrevIcon />
           </button>
-        ) : (
-          <button type="button" onClick={() => p.onSheet('bookmarks')}>
-            <BookmarkIcon filled={p.bookmarks.length > 0} />
-            <span>বুকমার্ক {p.bookmarks.length || ''}</span>
+          <button type="button" className="hw-key" onClick={() => engine.skip(-p.skipBack)} aria-label={`Back ${p.skipBack} seconds`}>
+            <SkipIcon dir="back" seconds={p.skipBack} />
           </button>
-        )}
-        <button type="button" onClick={() => p.onSheet('queue')} className={p.queueLength ? 'active' : ''}>
-          <QueueIcon />
-          <span>পরে {p.queueLength > 0 ? `(${p.queueLength})` : ''}</span>
-        </button>
-        <button type="button" onClick={() => p.onSheet('effects')} className={p.effectsOn ? 'active' : ''}>
-          <SlidersIcon />
-          <span>সাউন্ড</span>
-        </button>
-      </nav>
-      {sleepRemaining != null && <p className="np-sleep-note">☾ ঘুমের টাইমার: {formatDuration(sleepRemaining)} পরে থামবে</p>}
+          <button type="button" className={`hw-key play${playing ? ' down' : ''}`} onClick={() => engine.toggle()} aria-label={playing ? 'Pause' : 'Play'}>
+            <span className={`led${playing ? ' on' : ''}`} aria-hidden />
+            {playing ? <PauseIcon /> : <PlayIcon />}
+          </button>
+          <button type="button" className="hw-key" onClick={() => engine.skip(p.skipForward)} aria-label={`Forward ${p.skipForward} seconds`}>
+            <SkipIcon dir="forward" seconds={p.skipForward} />
+          </button>
+          <button type="button" className="hw-key" onClick={p.onNext} disabled={!p.hasNext} aria-label="Next episode">
+            <NextIcon />
+          </button>
+        </div>
+
+        <div className="deck-controls">
+          <VolumeKnob value={Math.round(p.volume * 100)} onChange={p.onVolume} />
+          <div className="deck-keys">
+            <button type="button" className={`hw-key labeled${p.eqOn ? ' on' : ''}`} onClick={() => p.onSheet('eq')}>
+              <span className="led" aria-hidden />
+              <SlidersIcon />
+              <span>ইকুয়ালাইজার</span>
+            </button>
+            <button type="button" className={`hw-key labeled${rate !== 1 ? ' on' : ''}`} onClick={() => p.onSheet('speed')}>
+              <span className="led" aria-hidden />
+              <GaugeIcon />
+              <span>{formatRate(rate)}</span>
+            </button>
+            <button type="button" className={`hw-key labeled${sleepRemaining != null || sleepTrack ? ' on' : ''}`} onClick={() => p.onSheet('sleep')}>
+              <span className="led" aria-hidden />
+              <MoonIcon />
+              <span>{sleepTrack ? 'পর্ব শেষে' : sleepRemaining != null ? formatTime(sleepRemaining) : 'ঘুম'}</span>
+            </button>
+            <button type="button" className={`hw-key labeled${p.effectsOn ? ' on' : ''}`} onClick={() => p.onSheet('effects')}>
+              <span className="led" aria-hidden />
+              <GaugeIcon className="flip" />
+              <span>সাউন্ড</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="deck-row" role="group" aria-label="More">
+          <button type="button" className="hw-key sm" onClick={p.onQuickBookmark}>
+            <BookmarkIcon /> চিহ্ন দিন
+          </button>
+          <button type="button" className="hw-key sm" onClick={() => p.onSheet('bookmarks')}>
+            <BookmarkIcon filled={p.bookmarks.length > 0} /> বুকমার্ক {p.bookmarks.length || ''}
+          </button>
+          {chapters.length > 0 && (
+            <button type="button" className="hw-key sm" onClick={() => p.onSheet('chapters')}>
+              <ChaptersIcon /> অধ্যায়
+            </button>
+          )}
+          <button type="button" className={`hw-key sm${p.queueLength ? ' on' : ''}`} onClick={() => p.onSheet('queue')}>
+            <QueueIcon /> পরে {p.queueLength > 0 ? `(${p.queueLength})` : ''}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

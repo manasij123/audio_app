@@ -1,0 +1,192 @@
+/*
+ * Glassmorphism for the main frame: translucent frosted surfaces over slowly
+ * drifting blood-red glows. The player itself is skeuomorphic (skeuo.css).
+ */
+
+:root {
+  --glass: rgb(255 255 255 / 0.55);
+  --glass-strong: rgb(255 250 250 / 0.78);
+  --glass-border: rgb(255 255 255 / 0.75);
+  --glass-edge: rgb(120 20 30 / 0.1);
+  --glass-shadow: 0 8px 28px rgb(60 10 15 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.85);
+  --glass-blur: blur(18px) saturate(1.4);
+  --glow-1: rgb(214 30 40 / 0.2);
+  --glow-2: rgb(150 20 70 / 0.16);
+  --glow-3: rgb(255 120 80 / 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --glass: rgb(34 20 22 / 0.42);
+    --glass-strong: rgb(22 13 15 / 0.8);
+    --glass-border: rgb(255 255 255 / 0.09);
+    --glass-edge: rgb(0 0 0 / 0.4);
+    --glass-shadow: 0 10px 34px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.07);
+    --glow-1: rgb(227 35 45 / 0.34);
+    --glow-2: rgb(130 16 60 / 0.32);
+    --glow-3: rgb(255 90 50 / 0.16);
+  }
+}
+
+:root[data-theme='dark'] {
+  --glass: rgb(34 20 22 / 0.42);
+  --glass-strong: rgb(22 13 15 / 0.8);
+  --glass-border: rgb(255 255 255 / 0.09);
+  --glass-edge: rgb(0 0 0 / 0.4);
+  --glass-shadow: 0 10px 34px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --glow-1: rgb(227 35 45 / 0.34);
+  --glow-2: rgb(130 16 60 / 0.32);
+  --glow-3: rgb(255 90 50 / 0.16);
+}
+
+/* ---- the light the glass bends ---- */
+
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient i {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  animation: drift 38s ease-in-out infinite alternate;
+}
+
+.ambient i:nth-child(1) {
+  top: -30vmax;
+  left: -20vmax;
+  background: radial-gradient(circle, var(--glow-1), transparent 65%);
+}
+
+.ambient i:nth-child(2) {
+  bottom: -35vmax;
+  right: -25vmax;
+  background: radial-gradient(circle, var(--glow-2), transparent 65%);
+  animation-duration: 46s;
+  animation-direction: alternate-reverse;
+}
+
+.ambient i:nth-child(3) {
+  top: 30%;
+  left: 40%;
+  width: 45vmax;
+  height: 45vmax;
+  background: radial-gradient(circle, var(--glow-3), transparent 65%);
+  animation-duration: 29s;
+}
+
+@keyframes drift {
+  to {
+    transform: translate(8vmax, 6vmax) scale(1.12);
+  }
+}
+
+.app,
+.gate {
+  position: relative;
+  z-index: 1;
+}
+
+.gate {
+  background: transparent;
+}
+
+/* ---- frosted surfaces ---- */
+
+.gate-card,
+.welcome,
+.stats-card,
+.mini-list,
+.settings-card,
+.feature-card,
+.terms,
+.list,
+.bm-list li,
+.search,
+.banner {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.genre-card,
+.genre-tile {
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  background: linear-gradient(160deg, color-mix(in srgb, hsl(var(--gh) 60% 42%) 26%, transparent), var(--glass) 70%);
+}
+
+.chip:not(.on),
+.sub-chip,
+.btn:not(.primary):not(.ghost):not(.danger):not(.confirm),
+.icon-btn.boxed,
+.option,
+.segmented,
+.gp-main[aria-pressed='false'] {
+  background: var(--glass);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* The library list becomes one glass panel with rows inside. */
+.list {
+  border-radius: 20px;
+  padding: 0 12px;
+}
+
+.list .row:last-child {
+  border-bottom: 0;
+}
+
+.row {
+  border-bottom-color: var(--glass-edge);
+}
+
+.dock {
+  background: var(--glass-strong);
+  border-top-color: var(--glass-border);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+}
+
+.sheet {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-bottom: 0;
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+}
+
+.sheet-actions {
+  background: transparent;
+}
+
+.sheet-backdrop {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.field input,
+.field textarea,
+.inline-form input,
+.bm-edit input {
+  background: var(--glass);
+  border-color: var(--glass-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient i {
+    animation: none;
+  }
+}

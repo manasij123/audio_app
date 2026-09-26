@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { EQ_BANDS } from './eq';
 
 /** Don't resume if the saved spot is within this many seconds of the end. */
 export const RESUME_TAIL_SECONDS = 10;
@@ -26,7 +27,10 @@ export interface EngineState {
 }
 
 export interface Effects {
-  boost: number;
+  /** 0–3 (300%). */
+  volume: number;
+  /** dB per band in EQ_BANDS. */
+  eq: number[];
   skipSilence: boolean;
   voiceClarity: boolean;
 }
@@ -67,6 +71,7 @@ interface Graph {
   ctx: AudioContext;
   highpass: BiquadFilterNode;
   presence: BiquadFilterNode;
+  bands: BiquadFilterNode[];
   gain: GainNode;
   compressor: DynamicsCompressorNode;
   analyser: AnalyserNode;
@@ -90,7 +95,7 @@ export class AudioEngine {
   private pausedAt: number | null = null;
   private lastTick: { wall: number; media: number } | null = null;
 
-  private effects: Effects = { boost: 1, skipSilence: false, voiceClarity: false };
+  private effects: Effects = { volume: 1, eq: [0, 0, 0, 0, 0, 0], skipSilence: false, voiceClarity: false };
   private graph: Graph | null = null;
   private silenceTimer: number | undefined;
   private silentMs = 0;
@@ -372,17 +377,20 @@ export class AudioEngine {
 
   setEffects(effects: Effects) {
     this.effects = effects;
-    const needed = effects.boost > 1 || effects.skipSilence || effects.voiceClarity;
+    const eqOn = effects.eq.some((g) => g !== 0);
+    const needed = effects.volume !== 1 || eqOn || effects.skipSilence || effects.voiceClarity;
     if (!needed && !this.graph) return; // keep the plain <audio> path when nothing is on
     const g = this.ensureGraph();
     if (!g) return;
     const t = g.ctx.currentTime;
-    g.gain.gain.setTargetAtTime(effects.boost, t, 0.05);
+    g.gain.gain.setTargetAtTime(effects.volume, t, 0.05);
+    g.bands.forEach((band, i) => band.gain.setTargetAtTime(effects.eq[i] ?? 0, t, 0.05));
     g.highpass.frequency.setTargetAtTime(effects.voiceClarity ? 90 : 10, t, 0.05);
     g.presence.gain.setTargetAtTime(effects.voiceClarity ? 5 : 0, t, 0.05);
-    // The compressor keeps boosted audio from clipping; neutral when boost is off.
-    g.compressor.threshold.setTargetAtTime(effects.boost > 1 ? -20 : 0, t, 0.05);
-    g.compressor.ratio.setTargetAtTime(effects.boost > 1 ? 4 : 1, t, 0.05);
+    // The compressor keeps boosted audio (volume over 100% or EQ lifts) from clipping; neutral otherwise.
+    const hot = effects.volume > 1 || effects.eq.some((g) => g > 4);
+    g.compressor.threshold.setTargetAtTime(hot ? -18 : 0, t, 0.05);
+    g.compressor.ratio.setTargetAtTime(hot ? 4 : 1, t, 0.05);
     if (!effects.skipSilence) this.stopSilenceWatch();
     else if (this.state.playing) this.startSilenceWatch();
   }
@@ -395,12 +403,18 @@ export class AudioEngine {
       const src = ctx.createMediaElementSource(this.audio);
       const highpass = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 10 });
       const presence = new BiquadFilterNode(ctx, { type: 'peaking', frequency: 2800, Q: 0.9, gain: 0 });
+      const bands = EQ_BANDS.map(
+        (frequency, i) =>
+          new BiquadFilterNode(ctx, { type: i === 0 ? 'lowshelf' : i === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking', frequency, Q: 1.1, gain: 0 }),
+      );
       const gain = new GainNode(ctx, { gain: 1 });
       const compressor = new DynamicsCompressorNode(ctx, { threshold: 0, ratio: 1, knee: 12, attack: 0.005, release: 0.2 });
       const analyser = new AnalyserNode(ctx, { fftSize: 1024 });
-      src.connect(highpass).connect(presence).connect(gain).connect(compressor).connect(ctx.destination);
+      let node: AudioNode = src.connect(highpass).connect(presence);
+      for (const band of bands) node = node.connect(band);
+      node.connect(gain).connect(compressor).connect(ctx.destination);
       src.connect(analyser);
-      this.graph = { ctx, highpass, presence, gain, compressor, analyser };
+      this.graph = { ctx, highpass, presence, bands, gain, compressor, analyser };
       if (this.state.playing) this.resumeContext();
       return this.graph;
     } catch (e) {
