@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { describeCloudError, getCloudConfig, pullRemote, pushRemote } from '../lib/cloud';
+import { describeCloudError, pullRemote, pushRemote } from '../lib/cloud';
+import { firebase } from '../lib/firebase';
 import type { LibraryStore } from '../lib/db';
 import { mergeSync } from '../lib/sync';
 import type { Profile } from '../lib/types';
@@ -14,7 +15,7 @@ const DEBOUNCE_MS = 15_000;
  */
 export function useCloudSync(store: LibraryStore, profile: Profile, reload: () => Promise<void>) {
   const uid = profile.google?.uid ?? null;
-  const enabled = uid != null && getCloudConfig() != null;
+  const enabled = uid != null && firebase() != null;
   const [status, setStatus] = useState<SyncStatus>(enabled ? 'idle' : 'off');
   const [error, setError] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<number | null>(null);

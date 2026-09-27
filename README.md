@@ -1,178 +1,144 @@
 # শ্রুতি · Shruti
 
-*Shruti* (শ্রুতি, "that which is heard") is a personal, offline library and player for audio
-stories such as Sunday Suspense and Feluda radio dramas. It is a React single-page app that runs
-entirely in the browser. Your audio files never leave the device.
+*Shruti* (শ্রুতি, "that which is heard") is an online audio-story app for Bengali thriller,
+detective and horror stories. Listeners sign in and stream anything from the catalogue. The
+owner and any admins they appoint upload and manage the stories. It is a React single-page app
+backed by **Firebase**: Auth for login, Firestore for the catalogue and listener data, and
+Storage for the audio and cover files.
+
+## Roles
+
+| Role | Who | Can do |
+| --- | --- | --- |
+| **Owner** | The first person to press **Settings → Claim ownership** after the app goes live (only possible once) | Everything an admin can do. Can never be removed. |
+| **Admin** | The owner, plus anyone an admin adds by email | Upload, edit, publish or hide, and delete stories. See listener counts and recent listeners. Add or remove admins. |
+| **Listener** | Anyone who signs up (Google or email + password) | Stream published stories. Favourites, progress, bookmarks and stats follow them to any device. |
+
+These roles are enforced on the server by `firestore.rules` and `storage.rules`, not only in the
+app.
 
 ## Features
 
-**Library**
-- **Import a folder or pick files.** Tags are read in the browser: ID3v2.2, v2.3 and v2.4
-  (including v2.4's synchsafe frame sizes and iTunes-style plain sizes), all four text
-  encodings, cover art (APIC/PIC) and chapter markers (CHAP). ID3v1 is used as a fallback.
-- If a file has no title tag, the title comes from its file name. A leading `#N#` marker,
-  a trailing `[videoId]` and `(128k)`-style suffixes are removed.
-- Audio is stored in IndexedDB as raw blobs (no base64). Re-importing a folder only adds new
-  files and reports "X new, Y already existed".
-- Search titles; filter by All, Favourites, In progress, New or Finished (with counts); sort by
-  episode number, title, recently added, recently played or length.
-- Each episode has a status pill (নতুন / time left / ✓ finished), a progress bar and a star.
-  The ⋯ menu offers play next, add to queue, mark as played or unplayed, bookmarks, rename,
-  file info, and delete with a two-tap confirmation.
-- Tracks without cover art get a generated tile: a colour derived from the title and its
-  first Bengali letter.
+**For listeners**
+- **Login is required** (free): Google or email + password, with password reset.
+- **Streaming:** stories play straight from Firebase Storage. Only signed-in users can get a
+  stream URL.
+- **Library, genres, search:**
+  - search, status filters (All / Favourites / In progress / New / Finished) and five sort orders
+  - genre filters: five main genres with 32 sub-genres (`src/lib/genres.ts`)
+- **Player:** a skeuomorphic hardware deck:
+  - spinning record with a tonearm
+  - glowing display
+  - metal transport keys
+  - volume knob up to 300%
+  - 6-band graphic EQ with presets
+  - speed 0.5–3×
+  - sleep timer (fade-out, shake to extend)
+  - bookmarks, chapters, Up-next queue
+  - skip silence, voice clarity, auto-rewind
+  - lock-screen controls
+- **Sync:** progress, favourites, finished flags and bookmarks are kept on the device and
+  synced to `listening/{uid}`. The most recent change wins, per story and per bookmark.
+- **Home:** Continue listening, a genre shelf, listening stats (7-day chart, streak) and
+  recently added stories.
 
-**Look: glass frame, hardware player**
-- The main frame is **glassmorphic**: cards, lists, tabs, search and sheets are frosted glass
-  over slowly drifting blood-red glows (`src/glass.css`).
-- Everything that plays audio is **skeuomorphic** (`src/skeuo.css`): the full-screen player is
-  a graphite deck with a spinning record (the cover art is its label; a tonearm swings on
-  while playing), a glowing red display, metal transport keys (the red play key latches
-  down while playing), a rotary **volume knob up to 300%**, and a **6-band graphic
-  equaliser** with faders and presets (সমান, কণ্ঠ, বেস, পুরনো রেডিও, রাতের শোনা, ভৌতিক).
-  The mini-player uses the same keys and a small spinning disc.
+**For admins (অ্যাডমিন tab)**
+- **Upload:** pick a folder or files. For each file the app reads, in the browser:
+  - title, album, artist and track number (ID3v2.2/2.3/2.4 or ID3v1; otherwise from the
+    file name)
+  - cover art and chapters
+  - duration
+  - genre, from keywords such as ফেলুদা, ব্যোমকেশ, তারানাথ, কাকাবাবু or ভূত
 
-**Player**
-- A mini-player sits above the tab bar. Tapping it opens the full-screen player, tinted with
-  the cover's colour.
-- Seek bar with chapter and bookmark marks, and elapsed / remaining time (adjusted for speed).
-- Speed from 0.5× to 3× in 0.05× steps, plus presets.
-- Skip back and forward, configurable (back 5–30 s, forward 10–60 s).
-- **Sleep timer:** 5–90 minutes or "end of episode". It counts down only while playing, fades
-  out over the last 10 seconds, and shaking the phone adds 5 minutes.
-- **Bookmarks:** one tap saves the current moment; notes are optional. The Bookmarks tab lists
-  them all, and tapping one plays from that exact point.
-- **Chapters** from ID3 CHAP frames.
-- **Queue ("Up next")** with reordering. When the queue is empty, playback continues in library
-  order.
-- **Sound:**
-  - volume 0–300% (knob in the player, slider in Settings), with a limiter so it doesn't distort
-  - 6-band graphic EQ (60 Hz – 10 kHz, ±12 dB) with presets, saved per profile
-  - skip silence (speeds through quiet gaps and counts the time saved)
-  - voice clarity (reduces rumble and lifts speech frequencies)
-- **Resume:**
-  - the position is saved every 5 seconds and on pause or close
-  - playback resumes there unless the saved position is within the last 10 seconds
-  - auto-rewind steps back a little after long pauses
-  - the next episode can start automatically
-- Lock-screen and notification controls use the Media Session API. On desktop, Space plays or
-  pauses and ←/→ skip.
+  You review the list, rename where needed, choose automatic or fixed genres and "publish
+  now" or "save as draft", then upload. Each file uploads resumably with its own progress
+  bar, and you can stop part-way. Files already on the server are skipped.
+- **Stories:** search, publish/draft toggles, and the ⋯ menu for rename, genres, hide and
+  delete for everyone (two taps).
+- **Listeners:** total count and the 50 most recently active.
+- **Admins:** add by email (the person must have signed in once) or remove. The owner can't be
+  removed.
+- **Overview:** story count, published count, storage used and listener count.
 
-**Branding:** the Shruti logo (`public/logo.webp`) appears on the home screen and is used for the app icons. The login screen shows `public/login-art.webp`: the logo with the five couplets of the Shruti rhyme in illustrated clouds, placed beside the profile card on wide screens. A faint line-art version of the logo (`public/watermark.webp`) is laid over every screen as a click-through watermark (5% opacity light, 6% dark). The palette (warm black, blood red, bone white) and the Galada display face follow the logo.
+**Look:** glassmorphic main frame, skeuomorphic player, the Shruti logo and login artwork, and a
+faint line-art watermark over the screens. Warm black / blood red / bone white, with Anek Bangla
+and Galada type.
 
-**Genres (ধরন tab)**
-- Five main genres with sub-genres: গোয়েন্দা ও রহস্য (6), থ্রিলার (12), ভৌতিক ও হরর (8),
-  অ্যাডভেঞ্চার (4), কল্পবিজ্ঞান ও ফ্যান্টাসি (2). The taxonomy lives in `src/lib/genres.ts`.
-- Tap a genre card or any sub-genre chip to see its stories; previous/next then follow that list.
-- A story can have several genres. They are set three ways:
-  - **At import:** choose "detect automatically" or give the whole batch the same genres.
-  - **Detected from names:** title, album and folder path are matched against keywords
-    (ফেলুদা/Feluda, ব্যোমকেশ, তারানাথ, কাকাবাবু, ঘনাদা, শঙ্কু, ভূত, জমিদার…). Stories imported
-    before genres existed are classified this way once.
-  - **By hand:** ⋯ menu → ধরন.
-- A key explains how রহস্য, থ্রিলার, সাসপেন্স and হরর differ.
+## Data model
 
-**Home**
-- A "Continue listening" carousel.
-- Listening stats: today, this week (7-day chart), daily streak, finished episodes and all-time
-  total.
-- Recently added episodes.
+| Where | What |
+| --- | --- |
+| Firestore `tracks/{id}` | title, album, artist, trackNo, duration, sizeBytes, genres, chapters, fileName, sourcePath, audioPath, coverPath, coverUrl, **published**, createdAt, updatedAt |
+| Firestore `users/{uid}` | name, email, photoURL, createdAt, lastSeen (listeners write their own; admins can read) |
+| Firestore `listening/{uid}` | that listener's synced progress and bookmarks (only they can read or write it) |
+| Firestore `admins/{uid}` | admin list |
+| Firestore `config/owner` | who owns the installation (created once, never changed) |
+| Storage `audio/{trackId}/{file}` | the audio (admins write, signed-in users read; audio types only, max 1 GB) |
+| Storage `covers/{trackId}.{ext}` | cover images (admins write; images only, max 10 MB) |
+| IndexedDB on the device | a local copy of the listener's progress, bookmarks and stats, so nothing is lost offline |
 
-**Profiles & login**
-- "কে শুনছেন?" (who's listening?) profile picker. Each profile has its own progress,
-  favourites, bookmarks, stats, queue and settings. The audio library is shared between
-  profiles.
-- Optional 4-digit **PIN** per profile, hashed with PBKDF2-SHA-256 via WebCrypto. Five wrong
-  tries lock the pad for 30 seconds. The PIN keeps others on a shared phone out of your
-  profile; it does **not** encrypt the files.
-- Optional **Google sign-in** (Firebase) to sync progress, favourites, finished flags and
-  bookmarks across devices. Audio files are never uploaded. Sync is local-first: everything
-  works offline and catches up when online. Conflicts are resolved per episode and per
-  bookmark, and the most recent change wins. Episodes are matched by their path inside the
-  imported folder, so import the same folder on each device. If you forget the PIN on a
-  Google-linked profile, you can remove it by signing in with that Google account.
+## Setting up your server (Firebase)
 
-**Settings & data**
-- Theme: system, light or dark.
-- Storage usage and quota, and a button to protect storage from being cleared
-  (`navigator.storage.persist()`).
-- "Delete finished episodes" (two-tap) to free space.
-- **Backup:** export or import a profile's progress and bookmarks as a JSON file, merged the
-  same way as cloud sync.
-- If IndexedDB isn't available (for example in some private-browsing modes), the app keeps the
-  library in memory for the session and shows a warning. Every storage call is wrapped in
-  error handling.
-- No `alert()` / `confirm()` / `prompt()` pop-ups; every confirmation is built into the page.
-- A service worker caches the app shell and the bundled Anek Bangla font, so the app opens
-  with no network.
-
-## Storage design
-
-IndexedDB database `shruti` (version 2):
-
-| store       | key                     | contents                                                                                  |
-| ----------- | ----------------------- | ----------------------------------------------------------------------------------------- |
-| `tracks`    | `id`                    | shared metadata: title, album, artist, trackNo, sizeBytes, duration, addedAt, chapters, … |
-| `covers`    | `id`                    | `{ id, blob }`: the embedded cover image                                                  |
-| `audio`     | `id`                    | `{ id, blob }`: the audio file itself                                                     |
-| `progress`  | `[profileId, trackId]`  | position, favourite, finished, lastPlayedAt, updatedAt                                    |
-| `bookmarks` | `id`                    | profileId, trackId, time, note (deletions are kept as tombstones so sync can see them)   |
-| `stats`     | `[profileId, day]`      | seconds listened and seconds saved by skip-silence                                        |
-| `profiles`  | `id`                    | name, avatar hue, PIN hash and salt, linked Google account                                |
-
-A track's `id` is its path relative to the imported folder, or its file name for loose files.
-Position saves happen every few seconds, and each one writes only a small `progress` record,
-never a record holding a 200 MB blob. Data from version 1 of the app is picked up by the
-first profile you create.
-
-## Setting up Google sign-in (optional)
-
-Without this, Shruti works fully offline with local profiles, and the Google button is hidden.
-
-1. Create a project at <https://console.firebase.google.com>.
-2. **Authentication → Get started → Sign-in method → Google → Enable.**
-3. **Authentication → Settings → Authorized domains:** add the domain you host Shruti on
-   (for example `yourname.github.io`).
-4. **Firestore Database → Create database** (production mode), then set these **Rules**:
-
+1. **Create a project** at <https://console.firebase.google.com>. Switch it to the
+   **Blaze (pay-as-you-go)** plan: Cloud Storage for new projects requires it. Blaze
+   includes a free allowance (5 GB stored, plus a monthly download allowance). Beyond that
+   you pay per GB stored and per GB streamed, so set a **budget alert** under Google Cloud →
+   Billing.
+2. **Authentication → Get started → Sign-in method:** enable **Email/Password** and **Google**.
+3. **Firestore Database → Create database** (production mode, a region near your listeners,
+   e.g. `asia-south1`).
+4. **Storage → Get started** (same region).
+5. **Project settings → Your apps → Add app → Web.** Copy the config values into `.env.local`
+   (see `.env.example`):
    ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /users/{uid} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
-     }
-   }
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=...
+   VITE_FIREBASE_PROJECT_ID=...
+   VITE_FIREBASE_STORAGE_BUCKET=...
+   VITE_FIREBASE_APP_ID=...
    ```
+6. **Deploy** the app, security rules and storage rules:
+   ```bash
+   npm install
+   npx firebase login
+   npx firebase use --add        # pick your project
+   npm run deploy                # builds, then deploys hosting + firestore rules + storage rules
+   ```
+   The first time, the CLI asks to let Storage rules read Firestore (they check who is an
+   admin). Answer **yes**.
+7. **Allow streaming with the equaliser (CORS).** In Google Cloud Shell, run:
+   ```bash
+   gsutil cors set storage-cors.json gs://YOUR_BUCKET
+   ```
+   Without this, audio still plays, but the equaliser and volume boost can't process it.
+8. Open `https://YOUR_PROJECT.web.app`, sign up, and **immediately** go to
+   **Settings → Claim ownership**. From then on you are the owner and first admin, and nobody
+   else can claim it.
+9. Upload stories from the **অ্যাডমিন** tab.
 
-5. **Project settings → Your apps → Add web app**, then copy the `firebaseConfig`. Either:
-   - put it in a `.env` file before building:
-     ```
-     VITE_FIREBASE_API_KEY=...
-     VITE_FIREBASE_AUTH_DOMAIN=...
-     VITE_FIREBASE_PROJECT_ID=...
-     VITE_FIREBASE_APP_ID=...
-     ```
-   - or paste it in the app under **Settings → Google অ্যাকাউন্ট ও Sync → Add Firebase config**.
+If the app is opened without a Firebase config, it shows a one-time setup screen where the
+config can be pasted instead of using `.env.local`.
 
-Each Google account's data lives in a single Firestore document, `users/{uid}`, which only
-that account can read or write.
+**Content rights:** only upload recordings you own or have permission to distribute. Most
+radio dramas and published stories (for example Sunday Suspense episodes, or the Feluda and
+Byomkesh books) are under copyright.
 
-## Development
+## Development and tests
 
 ```bash
 npm install
-npm run dev        # dev server
-npm test           # unit tests (ID3 + chapters, filename handling, storage, sync merge)
-npm run build      # type-check + production build into dist/
-npm run preview    # serve the production build (service worker active)
+npm test                 # unit tests: ID3 + chapters, filenames, genres, storage, sync merge
+npm run emulators        # local Firebase (auth, firestore, storage) — needs Java
+npm run dev:emulators    # the app against the emulators (uses .env.emulators, no real project)
+npm run test:rules       # 32 security-rule checks against the emulators
+npm run build            # production build into dist/
 ```
 
-The `dist/` folder is static. Host it on any HTTPS server (GitHub Pages, Netlify, …) so the
-service worker, Google sign-in and installation work, then open it in Chrome on Android and
-choose **Add to Home screen**.
-
-**Picking a folder on Android:** support for folder selection varies by Chrome version. If you
-can't select a folder, use **ফাইল যোগ** and select every file inside it; dedupe still works
-because loose files are keyed by file name.
+`test/rules.test.mjs` checks, among other things, that:
+- listeners can't write the catalogue, read drafts, read other people's data, or make
+  themselves admin
+- signed-out visitors can't read stories or get stream URLs
+- ownership can only be claimed once
+- the owner can't be removed
+- demoted admins lose write access
+- only admins can upload, and only audio or image files

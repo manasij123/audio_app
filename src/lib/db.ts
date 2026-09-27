@@ -285,6 +285,16 @@ export class LibraryStore {
     return { tracks, covers: new Map(covers.map((c) => [c.id, c.blob])), bookmarks, stats };
   }
 
+  /** One listener's progress, bookmarks and stats (the catalogue itself comes from the server). */
+  async loadUserData(profileId: string) {
+    const [progress, bookmarks, stats] = await Promise.all([
+      this.db.getAll<Progress>('progress', { index: 'profileId', value: profileId }),
+      this.db.getAll<Bookmark>('bookmarks', { index: 'profileId', value: profileId }),
+      this.db.getAll<DayStats>('stats', { index: 'profileId', value: profileId }),
+    ]);
+    return { progress, bookmarks, stats };
+  }
+
   add(track: Track, audio: Blob, cover: Blob | null) {
     // Blobs are stored as-is (structured clone) — no base64.
     const ops: Op[] = [

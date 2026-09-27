@@ -160,3 +160,12 @@ export const AtomIcon = (p: P) => (
 );
 export const MasksIcon = (p: P) => <Line {...p} d="M4 4h9v6a4.5 4.5 0 0 1-9 0zM11 11.5h9v5a4.5 4.5 0 0 1-9 0zM6.5 7.5h1M9.5 7.5h1M13.5 14.5h1M16.5 14.5h1M7 11.5c.9.6 2.1.6 3 0M14 18.5c.9-.6 2.1-.6 3 0" />;
 export const ChevronLeftIcon = (p: P) => <Line {...p} d="M15 6l-6 6 6 6" />;
+export const ShieldIcon = (p: P) => <Line {...p} d="M12 3 4.5 6v6c0 4.5 3.2 7.8 7.5 9 4.3-1.2 7.5-4.5 7.5-9V6zM9 12l2 2 4-4" />;
+export const CloudUpIcon = (p: P) => <Line {...p} d="M7 18.5h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7 9.6 4.5 4.5 0 0 0 7 18.5zM12 16v-5M9.5 13l2.5-2.5 2.5 2.5" />;
+export const EyeIcon = (p: P) => (
+  <svg {...base} {...p}>
+    <path {...line} d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+    <circle {...line} cx="12" cy="12" r="3" />
+  </svg>
+);
+export const UsersIcon = (p: P) => <Line {...p} d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 6.5M18.5 20a6.5 6.5 0 0 0-3-5.5" />;

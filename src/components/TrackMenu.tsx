@@ -3,7 +3,7 @@ import { formatBytes, formatTime } from '../lib/format';
 import type { Track } from '../lib/types';
 import { Cover } from './Cover';
 import { tagLabel } from '../lib/genres';
-import { BookmarkIcon, CheckIcon, EditIcon, MasksIcon, PauseIcon, PlayIcon, PlusIcon, QueueIcon, StarIcon, TrashIcon } from './Icons';
+import { BookmarkIcon, CheckIcon, EditIcon, EyeIcon, MasksIcon, PauseIcon, PlayIcon, PlusIcon, QueueIcon, StarIcon, TrashIcon } from './Icons';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -19,9 +19,13 @@ interface Props {
   onToggleFavorite(): void;
   onSetFinished(finished: boolean): void;
   onBookmarks(): void;
-  onGenres(): void;
-  onRename(title: string): void;
-  onDelete(): void;
+  /** Present only for admins: catalogue edits that affect every listener. */
+  admin?: {
+    onGenres(): void;
+    onRename(title: string): void;
+    onTogglePublish(): void;
+    onDelete(): void;
+  };
 }
 
 const CONFIRM_WINDOW_MS = 4000;
@@ -43,7 +47,7 @@ export function TrackMenu(p: Props) {
   const del = () => {
     clearTimeout(timer.current);
     if (confirmDelete) {
-      p.onDelete();
+      p.admin?.onDelete();
       p.onClose();
       return;
     }
@@ -56,7 +60,9 @@ export function TrackMenu(p: Props) {
       <div className="menu-head">
         <Cover url={p.coverUrl} title={track.title} size="md" />
         <div>
-          <div className="menu-title">{track.title}</div>
+          <div className="menu-title">
+            {track.title} {track.published === false && <span className="pill draft">খসড়া</span>}
+          </div>
           <div className="menu-sub">
             {[track.trackNo != null ? `#${track.trackNo}` : null, formatTime(track.duration), track.album].filter(Boolean).join(' · ')}
           </div>
@@ -68,7 +74,7 @@ export function TrackMenu(p: Props) {
           className="rename"
           onSubmit={(e) => {
             e.preventDefault();
-            p.onRename(title);
+            p.admin?.onRename(title);
             p.onClose();
           }}
         >
@@ -117,22 +123,34 @@ export function TrackMenu(p: Props) {
               <BookmarkIcon /> বুকমার্ক · Bookmarks {p.bookmarkCount > 0 && <span className="count">{p.bookmarkCount}</span>}
             </button>
           </li>
-          <li>
-            <button type="button" onClick={act(p.onGenres)}>
-              <MasksIcon /> ধরন · Genre
-              <span className="count">{track.genres?.length ? track.genres.map(tagLabel).join(', ') : 'দেওয়া হয়নি'}</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" onClick={() => setRenaming(true)}>
-              <EditIcon /> নাম বদলান · Rename
-            </button>
-          </li>
-          <li>
-            <button type="button" className={`danger${confirmDelete ? ' confirm' : ''}`} onClick={del}>
-              <TrashIcon /> {confirmDelete ? 'আবার চাপুন, মুছে যাবে · Tap again to delete' : 'মুছুন · Delete from device'}
-            </button>
-          </li>
+          {p.admin && (
+            <>
+              <li className="menu-divider" aria-hidden>
+                অ্যাডমিন · সবার জন্য বদলাবে
+              </li>
+              <li>
+                <button type="button" onClick={act(p.admin.onGenres)}>
+                  <MasksIcon /> ধরন · Genre
+                  <span className="count">{track.genres?.length ? track.genres.map(tagLabel).join(', ') : 'দেওয়া হয়নি'}</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => setRenaming(true)}>
+                  <EditIcon /> নাম বদলান · Rename
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={act(p.admin.onTogglePublish)}>
+                  <EyeIcon /> {track.published ? 'শ্রোতাদের থেকে লুকান · Unpublish' : 'প্রকাশ করুন · Publish'}
+                </button>
+              </li>
+              <li>
+                <button type="button" className={`danger${confirmDelete ? ' confirm' : ''}`} onClick={del}>
+                  <TrashIcon /> {confirmDelete ? 'আবার চাপুন, সার্ভার থেকে মুছে যাবে · Tap again to delete' : 'সার্ভার থেকে মুছুন · Delete for everyone'}
+                </button>
+              </li>
+            </>
+          )}
         </ul>
       )}
 

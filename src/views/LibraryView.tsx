@@ -1,11 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { CloseIcon, SearchIcon, SortIcon } from '../components/Icons';
 import { Sheet } from '../components/Sheet';
 import { genreStyle, GenreIcon } from '../components/GenreMark';
 import { TrackRow } from '../components/TrackRow';
 import { GENRES } from '../lib/genres';
-import { formatBytes } from '../lib/format';
 import { trackStatus, type Filter, type SortKey } from '../lib/types';
 import { useShell } from '../shellContext';
 
@@ -38,7 +36,6 @@ export function LibraryView() {
     }
     return c;
   }, [tracks]);
-  const totalBytes = useMemo(() => tracks.reduce((s, t) => s + t.sizeBytes, 0), [tracks]);
   const queued = useMemo(() => new Set(queue), [queue]);
   const ids = useMemo(() => visible.map((t) => t.id), [visible]);
   const playHere = useCallback((id: string) => play(id, { context: ids }), [play, ids]);
@@ -49,12 +46,10 @@ export function LibraryView() {
         <div>
           <h1>লাইব্রেরি</h1>
           <p className="summary">
-            {tracks.length} episodes · {formatBytes(totalBytes)} on this device
+            {tracks.length}টি গল্প · অনলাইনে শুনুন
           </p>
         </div>
-        <ImportButtons compact />
       </header>
-      <ImportProgressBar />
 
       <div className="toolbar">
         <label className="search">

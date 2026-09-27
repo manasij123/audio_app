@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
-import type { ProfileApi } from './components/ProfileGate';
-import type { Library, ImportResult } from './hooks/useLibrary';
+import type { Account } from './components/AuthGate';
+import type { Library } from './hooks/useLibrary';
 import type { useCloudSync } from './hooks/useCloudSync';
 import type { LibraryStore } from './lib/db';
 import type { Settings } from './lib/settings';
@@ -9,7 +9,8 @@ import type { Profile, Track } from './lib/types';
 export interface ShellValue {
   store: LibraryStore;
   profile: Profile;
-  profiles: ProfileApi;
+  account: Account;
+  catalogError: string | null;
   lib: Library;
   sync: ReturnType<typeof useCloudSync>;
   settings: Settings;
@@ -24,9 +25,7 @@ export interface ShellValue {
   /** `context`: the list being played from, so previous/next follow it. */
   play(id: string, opts?: { at?: number; context?: string[] }): void;
   openMenu(id: string): void;
-  importFiles(files: File[], genres?: string[]): Promise<ImportResult | null>;
-  pickFolder(): void;
-  pickFiles(): void;
+  openAdmin(): void;
   toast(message: string): void;
   /** Genre screen selection: "horror", "horror.tantrik", "untagged" or null for the overview. */
   genreSelection: string | null;

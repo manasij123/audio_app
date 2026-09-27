@@ -34,6 +34,13 @@ export interface Track {
   chapters: Chapter[];
   /** Genre tags ("horror" or "horror.tantrik"); null = never classified (tracks from before genres existed). */
   genres: string[] | null;
+  /** Online catalogue: where the audio lives in Storage, and the file's path in the admin's folder. */
+  audioPath?: string;
+  sourcePath?: string;
+  coverPath?: string | null;
+  coverUrl?: string | null;
+  /** Visible to listeners (admins also see drafts). */
+  published?: boolean;
 }
 
 /** Per-profile listening state for one track (the `progress` store). */

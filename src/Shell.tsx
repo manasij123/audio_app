@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GenrePicker } from './components/GenrePicker';
-import { BookmarkIcon, GearIcon, HomeIcon, LibraryIcon, MasksIcon } from './components/Icons';
-import { ImportGenreSheet } from './components/ImportGenreSheet';
+import type { Account } from './components/AuthGate';
+import { BookmarkIcon, GearIcon, HomeIcon, LibraryIcon, MasksIcon, ShieldIcon } from './components/Icons';
 import { Sheet } from './components/Sheet';
 import { MiniPlayer } from './components/MiniPlayer';
 import { NowPlaying, type PlayerSheet } from './components/NowPlaying';
 import { ChaptersSheet, EffectsSheet, QueueSheet, SleepSheet, SpeedSheet, TrackBookmarksSheet } from './components/PlayerSheets';
 import { EqualizerSheet } from './components/skeuo/EqualizerSheet';
-import type { ProfileApi } from './components/ProfileGate';
 import { TrackMenu } from './components/TrackMenu';
 import { Watermark } from './components/Watermark';
 import { useCloudSync } from './hooks/useCloudSync';
-import { useDurationProbe } from './hooks/useDurationProbe';
-import { useLibrary, type ImportResult } from './hooks/useLibrary';
+import { useCatalog } from './hooks/useCatalog';
+import { useLibrary } from './hooks/useLibrary';
+import { audioUrl, deleteTrack as deleteFromServer, updateTrack } from './lib/catalog';
+import { describeAuthError } from './lib/firebase';
 import type { LibraryStore } from './lib/db';
 import { getEngine, useEngine } from './lib/engine';
 import { formatTime } from './lib/format';
@@ -20,13 +21,14 @@ import { hasTag } from './lib/genres';
 import { loadSettings, lsGet, lsSet, saveSettings, type Settings } from './lib/settings';
 import { trackStatus, type Profile, type Track } from './lib/types';
 import { ShellContext, type ShellValue } from './shellContext';
+import { AdminView } from './views/AdminView';
 import { BookmarksView } from './views/BookmarksView';
 import { GenresView } from './views/GenresView';
 import { HomeView } from './views/HomeView';
 import { LibraryView } from './views/LibraryView';
 import { SettingsView } from './views/SettingsView';
 
-type Tab = 'home' | 'library' | 'genres' | 'bookmarks' | 'settings';
+type Tab = 'home' | 'library' | 'genres' | 'bookmarks' | 'settings' | 'admin';
 type SheetState = { kind: 'track'; id: string } | { kind: 'bookmarks'; id: string } | { kind: 'genres'; id: string } | { kind: PlayerSheet } | null;
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -52,23 +54,13 @@ function comparator(sort: Settings['sort']): (a: Track, b: Track) => number {
   }
 }
 
-function describeImport(r: ImportResult): string {
-  if (r.noAudio) return 'কোনো অডিও ফাইল পাওয়া যায়নি · No audio files in that selection';
-  const parts = [`${r.added} new, ${r.skipped} already existed`];
-  if (r.failed) parts.push(`${r.failed} failed`);
-  if (r.quotaHit) parts.push('stopped: device storage is full');
-  else if (r.lowSpaceWarning) parts.push('storage is nearly full');
-  if (r.persisted === false) parts.push('browser may clear this data if space runs low');
-  return parts.join(' · ');
-}
-
-export function Shell({ store, profile, profiles, storageError }: { store: LibraryStore; profile: Profile; profiles: ProfileApi; storageError: unknown }) {
+export function Shell({ store, profile, account, storageError }: { store: LibraryStore; profile: Profile; account: Account; storageError: unknown }) {
   const engine = getEngine();
   const dirty = useRef<() => void>(() => {});
-  const lib = useLibrary(store, profile.id, () => dirty.current());
+  const catalog = useCatalog(account.isAdmin);
+  const lib = useLibrary(store, profile.id, catalog.tracks, () => dirty.current());
   const sync = useCloudSync(store, profile, lib.reload);
   dirty.current = sync.markDirty;
-  useDurationProbe(store, lib.tracks, lib.tracksRef, lib.setDuration);
 
   const [settings, setSettings] = useState<Settings>(() => loadSettings(profile.id));
   const updateSettings = useCallback(
@@ -81,7 +73,10 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     [profile.id],
   );
 
-  const [tab, setTab] = useState<Tab>(() => lsGet<Tab>('shruti.tab', 'home'));
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = lsGet<Tab>('shruti.tab', 'home');
+    return t === 'admin' && !account.isAdmin ? 'home' : t;
+  });
   const [query, setQuery] = useState('');
   const [nowOpen, setNowOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -98,13 +93,10 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
       }),
     [queueKey],
   );
-  const [pendingImport, setPendingImport] = useState<File[] | null>(null);
   const [genreSelection, setGenreSelection] = useState<string | null>(() => lsGet<string | null>('shruti.genre', null));
   useEffect(() => lsSet('shruti.genre', genreSelection ?? undefined), [genreSelection]);
   const [libraryGenre, setLibraryGenre] = useState<string | null>(null);
   const [playContext, setPlayContext] = useState<string[] | null>(null);
-  const folderInput = useRef<HTMLInputElement>(null);
-  const filesInput = useRef<HTMLInputElement>(null);
 
   const currentId = useEngine((s) => s.trackId);
   const playing = useEngine((s) => s.playing);
@@ -121,9 +113,6 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
   }, [engineError, showToast]);
 
   useEffect(() => lsSet('shruti.tab', tab), [tab]);
-  useEffect(() => {
-    folderInput.current?.setAttribute('webkitdirectory', '');
-  }, []);
 
   // Theme: data-theme on <html> overrides the system preference.
   useEffect(() => {
@@ -174,10 +163,12 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
         return;
       }
       setQueue((q) => q.filter((x) => x !== id));
-      void engine.load(id, () => store.getAudio(id), { position: opts.at ?? (t.finished ? 0 : t.position), autoplay });
+      if (!t.audioPath) return;
+      const path = t.audioPath;
+      void engine.load(id, () => audioUrl(path).catch(() => null), { position: opts.at ?? (t.finished ? 0 : t.position), autoplay });
       lsSet(lastKey, id);
     },
-    [engine, lib.tracksRef, store, lastKey, setQueue],
+    [engine, lib.tracksRef, lastKey, setQueue],
   );
 
   const nav = useRef({ navList, navIndex, queue });
@@ -202,14 +193,18 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     engine.hooks = {
       savePosition: lib.savePosition,
       ended: () => settingsRef.current.autoPlayNext && goNext(),
-      duration: lib.setDuration,
+      duration: (id, d) => {
+        // Admins backfill a missing duration into the catalogue the first time it's played.
+        const t = lib.tracksRef.current.find((x) => x.id === id);
+        if (account.isAdmin && t && t.duration == null) updateTrack(id, { duration: Math.round(d * 10) / 10 }).catch(() => {});
+      },
       started: lib.markPlayed,
       listened: lib.addListening,
       next: goNext,
       prev: goPrev,
       notify: showToast,
     };
-  }, [engine, lib.savePosition, lib.setDuration, lib.markPlayed, lib.addListening, goNext, goPrev, showToast]);
+  }, [engine, lib.savePosition, lib.tracksRef, account.isAdmin, lib.markPlayed, lib.addListening, goNext, goPrev, showToast]);
 
   useEffect(() => {
     engine.skipBack = settings.skipBack;
@@ -253,23 +248,6 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     return () => window.removeEventListener('keydown', onKey);
   }, [engine]);
 
-  /* ------------------------------------------------------------ import */
-
-  const importFiles = useCallback(
-    async (files: File[], genres?: string[]) => {
-      if (!files.length) return null;
-      const result = await lib.importFiles(files, genres);
-      showToast(describeImport(result));
-      return result;
-    },
-    [lib, showToast],
-  );
-  const onPicked = (input: HTMLInputElement) => {
-    const files = input.files ? Array.from(input.files) : [];
-    input.value = ''; // allow re-picking the same folder later
-    if (files.length) setPendingImport(files); // ask for the genre first
-  };
-
   /* ------------------------------------------------------------ queue */
 
   const playNext = (id: string) => setQueue((q) => [id, ...q.filter((x) => x !== id)]);
@@ -279,15 +257,26 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     if (lib.loaded) setQueue((q) => (q.every((id) => trackMap.has(id)) ? q : q.filter((id) => trackMap.has(id))));
   }, [lib.loaded, trackMap, setQueue]);
 
+  /** Admin only: remove a story from the server for everyone. */
   const deleteTrack = async (id: string) => {
-    const title = trackMap.get(id)?.title ?? '';
+    const t = trackMap.get(id);
+    if (!t) return;
     if (engine.state.trackId === id) {
       engine.unload();
       setNowOpen(false);
     }
-    await lib.removeTrack(id);
-    showToast(`মুছে ফেলা হয়েছে · Deleted “${title}”`);
+    try {
+      await deleteFromServer({ id, audioPath: t.audioPath ?? '', coverPath: t.coverPath ?? null });
+      showToast(`সার্ভার থেকে মুছে ফেলা হয়েছে · Deleted “${t.title}”`);
+    } catch (e) {
+      showToast(describeAuthError(e));
+    }
   };
+  const adminPatch = (id: string, patch: Parameters<typeof updateTrack>[1], done: string) =>
+    updateTrack(id, patch).then(
+      () => showToast(done),
+      (e) => showToast(describeAuthError(e)),
+    );
 
   const trackBookmarks = useCallback((id: string) => lib.bookmarks.filter((b) => b.trackId === id && !b.deleted), [lib.bookmarks]);
   const savedSeconds = useMemo(() => [...lib.stats.values()].reduce((s, d) => s + d.savedSeconds, 0), [lib.stats]);
@@ -295,7 +284,8 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
   const value: ShellValue = {
     store,
     profile,
-    profiles,
+    account,
+    catalogError: catalog.error,
     lib,
     sync,
     settings,
@@ -309,10 +299,11 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
     playing,
     play,
     openMenu: (id) => setSheet({ kind: 'track', id }),
-    importFiles,
-    pickFolder: () => folderInput.current?.click(),
-    pickFiles: () => filesInput.current?.click(),
     toast: showToast,
+    openAdmin: () => {
+      setTab('admin');
+      window.scrollTo({ top: 0 });
+    },
     genreSelection,
     setGenreSelection,
     openGenre: (sel) => {
@@ -326,20 +317,20 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
 
   const storageWarning =
     store.mode === 'memory'
-      ? 'এই ব্রাউজারে স্থায়ী স্টোরেজ পাওয়া যাচ্ছে না (প্রাইভেট মোড?) — ট্যাব বন্ধ করলে লাইব্রেরি হারিয়ে যাবে। Persistent storage is unavailable here.'
+      ? 'এই ব্রাউজারে স্থানীয় স্টোরেজ পাওয়া যাচ্ছে না (প্রাইভেট মোড?) — অগ্রগতি শুধু আপনার অ্যাকাউন্টে sync হলে থাকবে।'
       : storageError
-        ? 'সংরক্ষিত লাইব্রেরি পড়া যায়নি · Could not read the saved library.'
-        : lib.writeError
-          ? 'কিছু পরিবর্তন সেভ হয়নি · Some changes could not be saved to this device (storage full?).'
-          : null;
+        ? 'এই ডিভাইসের সংরক্ষিত তথ্য পড়া যায়নি · Could not read data saved on this device.'
+        : catalog.error
+          ? `গল্পের তালিকা আনা যায়নি · ${catalog.error}`
+          : lib.writeError
+            ? 'কিছু পরিবর্তন সেভ হয়নি · Some changes could not be saved on this device.'
+            : null;
 
   const sheetTrack = sheet && 'id' in sheet ? trackMap.get(sheet.id) : currentTrack;
 
   return (
     <ShellContext.Provider value={value}>
-      <div className={`app${currentTrack ? ' has-player' : ''}${nowOpen || sheet || pendingImport ? ' modal-open' : ''}`}>
-        <input ref={folderInput} type="file" multiple accept="audio/*" hidden onChange={(e) => onPicked(e.currentTarget)} />
-        <input ref={filesInput} type="file" multiple accept="audio/*,.mp3,.m4a,.m4b,.ogg,.opus" hidden onChange={(e) => onPicked(e.currentTarget)} />
+      <div className={`app${currentTrack ? ' has-player' : ''}${nowOpen || sheet ? ' modal-open' : ''}`}>
 
         {storageWarning && !bannerDismissed && (
           <div className="banner" role="alert">
@@ -351,17 +342,18 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
         )}
 
         <Watermark />
-        <main className="content" inert={nowOpen || sheet != null || pendingImport != null}>
+        <main className="content" inert={nowOpen || sheet != null}>
           {tab === 'home' && <HomeView />}
           {tab === 'library' && <LibraryView />}
           {tab === 'genres' && <GenresView />}
           {tab === 'bookmarks' && <BookmarksView />}
           {tab === 'settings' && <SettingsView />}
+          {tab === 'admin' && account.isAdmin && <AdminView />}
         </main>
 
-        <div className="dock" inert={nowOpen || sheet != null || pendingImport != null}>
+        <div className="dock" inert={nowOpen || sheet != null}>
           {currentTrack && <MiniPlayer track={currentTrack} coverUrl={coverUrl} skipForward={settings.skipForward} onOpen={() => setNowOpen(true)} />}
-          <nav className="tabbar" aria-label="Sections">
+          <nav className={`tabbar${account.isAdmin ? ' six' : ''}`} aria-label="Sections">
             {(
               [
                 ['home', 'হোম', HomeIcon],
@@ -369,6 +361,7 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
                 ['genres', 'ধরন', MasksIcon],
                 ['bookmarks', 'বুকমার্ক', BookmarkIcon],
                 ['settings', 'সেটিংস', GearIcon],
+                ...(account.isAdmin ? ([['admin', 'অ্যাডমিন', ShieldIcon]] as const) : []),
               ] as const
             ).map(([key, label, Icon]) => (
               <button key={key} type="button" className={tab === key ? 'on' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => (setTab(key), window.scrollTo({ top: 0 }))}>
@@ -421,9 +414,17 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             onToggleFavorite={() => lib.toggleFavorite(sheetTrack.id)}
             onSetFinished={(f) => lib.setFinished(sheetTrack.id, f)}
             onBookmarks={() => setTimeout(() => setSheet({ kind: 'bookmarks', id: sheetTrack.id }))}
-            onGenres={() => setTimeout(() => setSheet({ kind: 'genres', id: sheetTrack.id }))}
-            onRename={(title) => lib.rename(sheetTrack.id, title)}
-            onDelete={() => void deleteTrack(sheetTrack.id)}
+            admin={
+              account.isAdmin
+                ? {
+                    onGenres: () => setTimeout(() => setSheet({ kind: 'genres', id: sheetTrack.id })),
+                    onRename: (title) => void adminPatch(sheetTrack.id, { title: title.trim() }, 'নাম বদলানো হয়েছে · Renamed'),
+                    onTogglePublish: () =>
+                      void adminPatch(sheetTrack.id, { published: !sheetTrack.published }, sheetTrack.published ? 'লুকানো হয়েছে · Hidden from listeners' : 'প্রকাশিত · Published'),
+                    onDelete: () => void deleteTrack(sheetTrack.id),
+                  }
+                : undefined
+            }
           />
         )}
         {sheet?.kind === 'bookmarks' && sheetTrack && (
@@ -445,20 +446,8 @@ export function Shell({ store, profile, profiles, storageError }: { store: Libra
             track={sheetTrack}
             onClose={() => setSheet(null)}
             onSave={(tags) => {
-              lib.setGenres(sheetTrack.id, tags);
               setSheet(null);
-              showToast('ধরন সেভ হয়েছে · Genres saved');
-            }}
-          />
-        )}
-        {pendingImport && (
-          <ImportGenreSheet
-            files={pendingImport}
-            onCancel={() => setPendingImport(null)}
-            onImport={(genres) => {
-              const files = pendingImport;
-              setPendingImport(null);
-              void importFiles(files, genres);
+              void adminPatch(sheetTrack.id, { genres: tags }, 'ধরন সেভ হয়েছে · Genres saved');
             }}
           />
         )}

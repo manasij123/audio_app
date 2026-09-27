@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Shruti — who may do what.
+//  - Everyone must be signed in to see anything.
+//  - Listeners read published stories and read/write only their own data.
+//  - Admins (a doc at /admins/{uid}) manage the catalogue and other admins.
+//  - The very first owner claims the app once, by creating /config/owner and
+//    their own /admins doc in the same batch; after that nobody else can.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Story catalogue
+    match /tracks/{trackId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.published == true);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Public profile of each listener (name, email, when they joined)
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create, update: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'photoURL', 'createdAt', 'lastSeen']);
+      allow delete: if isSelf(uid) || isAdmin();
+    }
+
+    // Each listener's progress, favourites and bookmarks (synced between devices)
+    match /listening/{uid} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // Admin list
+    match /admins/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create: if isAdmin()
+        || (isSelf(uid)
+            && !exists(/databases/$(database)/documents/config/owner)
+            && getAfter(/databases/$(database)/documents/config/owner).data.uid == request.auth.uid);
+      allow update: if isAdmin();
+      // An admin can remove other admins, but never the owner.
+      allow delete: if isAdmin()
+        && get(/databases/$(database)/documents/config/owner).data.uid != uid;
+    }
+
+    // Who owns this installation (set once)
+    match /config/owner {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && existsAfter(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow update, delete: if false;
+    }
+  }
+}

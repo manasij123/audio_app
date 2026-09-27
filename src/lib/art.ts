@@ -21,6 +21,7 @@ export function initialOf(title: string): string {
 export async function dominantColor(url: string): Promise<[number, number, number] | null> {
   try {
     const img = new Image();
+    img.crossOrigin = 'anonymous'; // covers are served from Storage; needs CORS to read pixels
     img.src = url;
     await img.decode();
     const c = document.createElement('canvas');

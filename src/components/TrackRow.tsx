@@ -51,6 +51,7 @@ export const TrackRow = memo(function TrackRow({ track, coverUrl, isCurrent, isP
             <StatusLabel track={track} />
             {track.genres?.[0] && <span className="row-genre">{tagLabel(track.genres[0])}</span>}
             {queued && <span className="pill queued">পরের তালিকায়</span>}
+            {track.published === false && <span className="pill draft">খসড়া</span>}
           </span>
           {pct > 0 && (
             <span className="row-progress" aria-hidden>

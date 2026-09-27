@@ -8,7 +8,12 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "dev:emulators": "vite --mode emulators",
+    "build:emulators": "tsc -b && vite build --mode emulators --outDir dist-emulators",
+    "emulators": "firebase emulators:start --only auth,firestore,storage",
+    "test:rules": "firebase emulators:exec --only auth,firestore,storage \"node test/rules.test.mjs\"",
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules,storage"
   },
   "dependencies": {
     "@fontsource-variable/anek-bangla": "^5.3.0",
@@ -21,6 +26,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "firebase-tools": "^15.31.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"

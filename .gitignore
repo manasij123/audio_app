@@ -4,3 +4,6 @@ dist
 .DS_Store
 *.tsbuildinfo
 .env
+*.log
+.env.local
+dist-emulators

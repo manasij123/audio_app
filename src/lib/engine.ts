@@ -108,7 +108,12 @@ export class AudioEngine {
   constructor() {
     const a = (this.audio = document.createElement('audio'));
     a.preload = 'metadata';
+    a.crossOrigin = 'anonymous';
+    a.hidden = true;
+    document.body.appendChild(a);
     a.addEventListener('loadedmetadata', this.onLoadedMetadata);
+    a.addEventListener('waiting', () => this.set({ loading: true }));
+    a.addEventListener('canplay', () => this.state.loading && this.set({ loading: false }));
     a.addEventListener('timeupdate', this.onTimeUpdate);
     a.addEventListener('play', () => this.set({ playing: true }));
     a.addEventListener('playing', () => this.startSilenceWatch());
@@ -117,7 +122,7 @@ export class AudioEngine {
     a.addEventListener('seeked', () => this.updatePositionState());
     a.addEventListener('ratechange', () => this.updatePositionState());
     a.addEventListener('error', () => {
-      if (this.state.trackId && a.getAttribute('src')) this.set({ error: 'এই ফাইলটি চালানো যাচ্ছে না · This file could not be played', loading: false });
+      if (this.state.trackId && a.getAttribute('src')) this.set({ error: 'গল্পটা চালানো গেল না — নেট সংযোগ দেখুন · This story could not be played. Check your connection.', loading: false });
     });
     window.addEventListener('pagehide', () => this.saveNow());
     document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && this.saveNow());
@@ -142,7 +147,7 @@ export class AudioEngine {
    * Load a track. `position` is where to resume; it is ignored when it falls
    * within the last few seconds of the track.
    */
-  async load(id: string, getBlob: () => Promise<Blob | null>, opts: { position: number; autoplay: boolean }) {
+  async load(id: string, getSource: () => Promise<string | Blob | null>, opts: { position: number; autoplay: boolean }) {
     const token = ++this.loadToken;
     this.saveNow();
     this.releaseSource();
@@ -151,19 +156,26 @@ export class AudioEngine {
     this.pausedAt = null;
     this.set({ trackId: id, loading: true, ready: false, playing: false, time: opts.position, duration: 0, error: null });
 
-    let blob: Blob | null = null;
+    let source: string | Blob | null = null;
     try {
-      blob = await getBlob();
+      source = await getSource();
     } catch (e) {
-      console.warn('[shruti] could not read audio', e);
+      console.warn('[shruti] could not get audio', e);
     }
     if (token !== this.loadToken) return;
-    if (!blob) {
-      this.set({ loading: false, error: 'এই ফাইলটি পাওয়া যাচ্ছে না · Audio data missing for this track' });
+    if (!source) {
+      this.set({ loading: false, error: 'এই গল্পটা এখন চালানো যাচ্ছে না — নেট সংযোগ দেখুন · Could not reach this story. Check your connection.' });
       return;
     }
-    this.url = URL.createObjectURL(blob);
-    this.audio.src = this.url;
+    if (typeof source === 'string') {
+      // Streamed from the server. CORS mode lets the EQ / volume graph process it.
+      this.audio.crossOrigin = 'anonymous';
+      this.audio.src = source;
+    } else {
+      this.audio.removeAttribute('crossorigin');
+      this.url = URL.createObjectURL(source);
+      this.audio.src = this.url;
+    }
     this.audio.defaultPlaybackRate = this.state.rate;
     this.audio.playbackRate = this.state.rate;
     if (opts.autoplay) this.resumeContext();

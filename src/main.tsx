@@ -7,6 +7,7 @@ import './styles.css';
 import './genres.css';
 import './glass.css';
 import './skeuo.css';
+import './admin.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { Cover } from '../components/Cover';
-import { ImportButtons, ImportProgressBar } from '../components/ImportButtons';
 import { PlayIcon } from '../components/Icons';
 import { GenreShelf } from '../components/GenreShelf';
 import { Logo } from '../components/Logo';
@@ -20,7 +19,7 @@ function greeting(h: number) {
 }
 
 export function HomeView() {
-  const { lib, profile, play, openMenu, sorted, currentId } = useShell();
+  const { lib, profile, play, openMenu, sorted, currentId, account, openAdmin } = useShell();
   const { tracks, coverUrls, stats } = lib;
 
   const continueList = useMemo(
@@ -76,14 +75,17 @@ export function HomeView() {
               <i key={i} style={{ animationDelay: `${-((i * 137) % 900)}ms` }} />
             ))}
           </div>
-          <h2>আপনার লাইব্রেরি এখনও খালি</h2>
-          <p>
-            যে ফোল্ডারে সানডে সাসপেন্স, ফেলুদা বা অন্য গল্পের MP3 আছে সেটা বেছে নিন। ফাইলগুলো এই ব্রাউজারের নিজস্ব স্টোরেজে কপি হবে, তাই পরের বার
-            থেকে নেট ছাড়াই সরাসরি এখানে পাবেন। কিছুই কোথাও আপলোড হয় না।
-          </p>
-          <ImportButtons />
-          <ImportProgressBar />
-          <p className="hint">ফোন যদি ফোল্ডার বাছতে না দেয়, “ফাইল যোগ” চেপে ফোল্ডারের সব ফাইল একসাথে সিলেক্ট করুন।</p>
+          <h2>এখনও কোনো গল্প নেই</h2>
+          {account.isAdmin ? (
+            <>
+              <p>আপনি অ্যাডমিন। অ্যাডমিন ট্যাব থেকে গল্প আপলোড করুন — প্রকাশ করলেই সব শ্রোতা শুনতে পাবেন।</p>
+              <button type="button" className="btn primary" onClick={openAdmin}>
+                গল্প আপলোড করুন
+              </button>
+            </>
+          ) : (
+            <p>শিগগিরই এখানে নতুন গল্প আসবে। অ্যাডমিন গল্প যোগ করলেই এই পাতায় দেখতে পাবেন।</p>
+          )}
         </section>
         <GenreShelf />
       </div>
@@ -99,7 +101,6 @@ export function HomeView() {
         </div>
         <Logo size={64} />
       </header>
-      <ImportProgressBar />
 
       {continueList.length > 0 && (
         <section className="section">
@@ -185,7 +186,6 @@ export function HomeView() {
       <section className="section">
         <div className="section-head">
           <h2 className="section-title">নতুন যোগ হয়েছে · Recently added</h2>
-          <ImportButtons compact />
         </div>
         <ul className="mini-list">
           {recent.map((t) => (

@@ -6,7 +6,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  // Firebase is required up front (login), so the main bundle is larger than Vite's default hint.
+  build: { chunkSizeWarningLimit: 1200 },
   test: {
     environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 });
